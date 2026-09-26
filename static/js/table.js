@@ -74,11 +74,11 @@ document.getElementById("reset").addEventListener("click", () => {
 document.getElementById("solve").addEventListener("click", async () => {
   const resultBox = document.getElementById("result");
   if (!state.cue || state.balls.length === 0) {
-    resultBox.textContent = "Coloca la bola blanca y al menos una bola objetivo.";
+    resultBox.textContent = "Place the cue ball and at least one object ball.";
     return;
   }
 
-  resultBox.textContent = "Resolviendo...";
+  resultBox.textContent = "Solving...";
   const createResponse = await fetch("/api/layouts", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -91,13 +91,13 @@ document.getElementById("solve").addEventListener("click", async () => {
 
   if (result.possible) {
     const lines = result.order.map(
-      (step, i) => `${i + 1}. Bola ${step.ball} -> tronera (${step.pocket.x}, ${step.pocket.y}) - corte ${step.cut_angle.toFixed(1)}°`
+      (step, i) => `${i + 1}. Ball ${step.ball} -> pocket (${step.pocket.x}, ${step.pocket.y}) - cut angle ${step.cut_angle.toFixed(1)}°`
     );
-    resultBox.textContent = "Run-out posible:\n" + lines.join("\n");
+    resultBox.textContent = "Run-out possible:\n" + lines.join("\n");
   } else if (result.failed_at !== null && result.failed_at !== undefined) {
-    resultBox.textContent = `No hay run-out posible. Se bloquea en la bola ${result.failed_at}.`;
+    resultBox.textContent = `No run-out possible. Blocked at ball ${result.failed_at}.`;
   } else {
-    resultBox.textContent = "No hay run-out posible con ningún orden.";
+    resultBox.textContent = "No run-out is possible with any order.";
   }
 });
 

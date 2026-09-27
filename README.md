@@ -6,8 +6,8 @@ Meant as an analysis tool **between games** (like consulting a chess engine afte
 
 ## Structure (two domains)
 
-- `domains/layouts/` — **Layouts & sessions**: SQLite persistence of ball positions and the player's real attempts.
-- `domains/solver/` — **Solver engine**: geometry (which shots are blocked by other balls?) plus a backtracking search over the shot order. It never writes to the database, only reads a layout and returns a result.
+- `domains/layouts/` —-> **Layouts & sessions**: SQLite persistence of ball positions and the player's real attempts.
+- `domains/solver/` —-> **Solver engine**: geometry (which shots are blocked by other balls?) plus a backtracking search over the shot order. It never writes to the database, only reads a layout and returns a result.
 
 The solver does not enumerate every possible sequence: it returns the best one it finds, or the point where it stops being possible. See `ADR.md` for the reasoning.
 
@@ -33,14 +33,14 @@ Open `http://localhost:<PORT>/` in the browser, click on the table to place the 
 
 ## Tests & coverage
 
-The tests cover the actual business logic (the solver engine: geometry + search), not the Flask routes or the persistence CRUD.
+The tests cover the two domains' actual logic (solver geometry/search, and the layouts repository's read/write behavior), not the Flask routes themselves. Repository tests point SQLite at a temporary file per test (see `tests/test_layouts_repository.py`), so they never touch the real `data/runout.db`.
 
 ```bash
 pip install -r requirements.txt
-python -m pytest --cov=domains.solver --cov-report=term-missing
+python -m pytest --cov=domains --cov-report=term-missing
 ```
 
-Current result: **12 tests, 96% coverage on `domains/solver`**.
+Current result: **17 tests, 97% coverage across `domains/layouts` and `domains/solver`**.
 
 ## AI disclosure statement
 

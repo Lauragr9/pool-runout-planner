@@ -1,4 +1,5 @@
-from domains.solver.engine import find_runout
+from domains.solver.engine import TABLE_HEIGHT, TABLE_WIDTH, find_runout
+from domains.solver.geometry import DEFAULT_BALL_RADIUS
 
 
 def test_single_ball_with_clear_shot_is_a_runout():
@@ -58,3 +59,17 @@ def test_more_than_max_balls_is_rejected():
         assert False, "expected a ValueError for a layout above MAX_BALLS"
     except ValueError:
         pass
+
+
+def test_cue_rest_position_never_ends_up_off_the_table():
+    # regression: for a ball near the top rail, the stun-shot tangent line can
+    # point past y=0; the cue ball must not be reported as resting off-table
+    cue = {"x": 30, "y": 20}
+    ball = {"number": 1, "x": 60, "y": 3}
+
+    result = find_runout(cue, [ball])
+
+    assert result["possible"] is True
+    rest = result["order"][0]["cue_rest_position"]
+    assert DEFAULT_BALL_RADIUS <= rest["x"] <= TABLE_WIDTH - DEFAULT_BALL_RADIUS
+    assert DEFAULT_BALL_RADIUS <= rest["y"] <= TABLE_HEIGHT - DEFAULT_BALL_RADIUS

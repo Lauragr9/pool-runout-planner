@@ -15,6 +15,17 @@ POCKETS = [
 ]
 
 
+def _clamp_to_table(pos, ball_radius=geometry.DEFAULT_BALL_RADIUS):
+    """Cushions stop the cue ball rather than letting it slide off the table;
+    we don't model the bounce, just treat the rail as a hard limit. The
+    ball's center can only get within one radius of a rail, same as a real
+    ball resting against the cushion."""
+    return {
+        "x": max(ball_radius, min(TABLE_WIDTH - ball_radius, pos["x"])),
+        "y": max(ball_radius, min(TABLE_HEIGHT - ball_radius, pos["y"])),
+    }
+
+
 def _best_pocket_shot(cue_pos, object_ball, other_balls):
     """Return the easiest makeable shot for this ball (lowest cut angle), or None."""
     candidates = []
@@ -32,7 +43,8 @@ def _best_pocket_shot(cue_pos, object_ball, other_balls):
         return None
     candidates.sort(key=lambda c: c[0])
     angle, pocket, ghost = candidates[0]
-    return {"pocket": pocket, "cue_rest_position": ghost, "cut_angle": angle}
+    rest = _clamp_to_table(geometry.stun_rest_position(cue_pos, object_ball, pocket))
+    return {"pocket": pocket, "cue_rest_position": rest, "cut_angle": angle}
 
 
 def _search(cue_pos, remaining):
@@ -53,7 +65,12 @@ def _search(cue_pos, remaining):
         rest = [b for b in remaining if b["number"] != ball["number"]]
         continuation = _search(shot["cue_rest_position"], rest)
         if continuation is not None:
-            step = {"ball": ball["number"], "pocket": shot["pocket"], "cut_angle": shot["cut_angle"]}
+            step = {
+                "ball": ball["number"],
+                "pocket": shot["pocket"],
+                "cut_angle": shot["cut_angle"],
+                "cue_rest_position": shot["cue_rest_position"],
+            }
             return [step] + continuation
 
     return None

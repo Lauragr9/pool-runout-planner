@@ -29,7 +29,7 @@ By default it listens on port `5000` and stores the SQLite database at `data/run
 - `PORT` — listening port (default `5000`)
 - `DATA_DIR` — folder where `runout.db` is stored (default `data`)
 
-Open `http://localhost:<PORT>/` in the browser, click on the table to place the cue ball and the object balls, then click "Save & Solve".
+Open `http://localhost:<PORT>/` in the browser, click on the table to place the cue ball and the object balls, then click "Save & Solve". After a successful solve you can log whether you actually ran out with it; "View history" lists recent layouts and their logged attempts.
 
 ## Tests & coverage
 
@@ -40,7 +40,7 @@ pip install -r requirements.txt
 python -m pytest --cov=domains --cov-report=term-missing
 ```
 
-Current result: **17 tests, 97% coverage across `domains/layouts` and `domains/solver`**.
+Current result: **22 tests, 98% coverage across `domains/layouts` and `domains/solver`**.
 
 ## AI disclosure statement
 

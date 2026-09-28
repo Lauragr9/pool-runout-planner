@@ -51,3 +51,41 @@ def log_attempt(layout_id, succeeded, notes):
     )
     conn.commit()
     conn.close()
+
+
+def list_recent_layouts(limit=20):
+    conn = get_db()
+    layout_rows = conn.execute(
+        "SELECT id, created_at, cue_x, cue_y FROM layouts ORDER BY id DESC LIMIT ?", (limit,)
+    ).fetchall()
+
+    layouts = []
+    for row in layout_rows:
+        ball_rows = conn.execute(
+            "SELECT ball_number, x, y FROM layout_balls WHERE layout_id = ? ORDER BY ball_number",
+            (row["id"],),
+        ).fetchall()
+        attempt_rows = conn.execute(
+            "SELECT succeeded, notes, created_at FROM attempts WHERE layout_id = ? ORDER BY id",
+            (row["id"],),
+        ).fetchall()
+        layouts.append(
+            {
+                "id": row["id"],
+                "created_at": row["created_at"],
+                "cue": {"x": row["cue_x"], "y": row["cue_y"]},
+                "balls": [
+                    {"number": b["ball_number"], "x": b["x"], "y": b["y"]} for b in ball_rows
+                ],
+                "attempts": [
+                    {
+                        "succeeded": bool(a["succeeded"]),
+                        "notes": a["notes"],
+                        "created_at": a["created_at"],
+                    }
+                    for a in attempt_rows
+                ],
+            }
+        )
+    conn.close()
+    return layouts

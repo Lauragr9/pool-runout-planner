@@ -42,6 +42,13 @@ def create_app():
         layouts_repo.log_attempt(layout_id, data.get("succeeded"), data.get("notes", ""))
         return jsonify({"ok": True}), 201
 
+    @app.get("/api/history")
+    def history():
+        layouts = layouts_repo.list_recent_layouts()
+        for layout in layouts:
+            layout["solution"] = find_runout(layout["cue"], layout["balls"])
+        return jsonify(layouts)
+
     return app
 
 

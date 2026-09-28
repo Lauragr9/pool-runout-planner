@@ -71,3 +71,31 @@ def test_log_attempt_stores_false_as_zero(tmp_path, monkeypatch):
     conn.close()
 
     assert row["succeeded"] == 0
+
+
+def test_list_recent_layouts_includes_positions_and_attempts(tmp_path, monkeypatch):
+    _use_temp_db(tmp_path, monkeypatch)
+    cue = {"x": 0, "y": 0}
+    balls = [{"number": 1, "x": 1, "y": 1}, {"number": 2, "x": 2, "y": 2}]
+    layout_id = repo.create_layout(cue, balls)
+    repo.log_attempt(layout_id, True, "worked")
+    repo.log_attempt(layout_id, False, "missed second ball")
+
+    layouts = repo.list_recent_layouts()
+
+    assert len(layouts) == 1
+    assert layouts[0]["id"] == layout_id
+    assert layouts[0]["cue"] == cue
+    assert layouts[0]["balls"] == balls
+    assert [a["succeeded"] for a in layouts[0]["attempts"]] == [True, False]
+    assert layouts[0]["attempts"][1]["notes"] == "missed second ball"
+
+
+def test_list_recent_layouts_newest_first(tmp_path, monkeypatch):
+    _use_temp_db(tmp_path, monkeypatch)
+    first_id = repo.create_layout({"x": 0, "y": 0}, [])
+    second_id = repo.create_layout({"x": 1, "y": 1}, [])
+
+    layouts = repo.list_recent_layouts()
+
+    assert [layout["id"] for layout in layouts] == [second_id, first_id]

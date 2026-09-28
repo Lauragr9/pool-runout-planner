@@ -15,3 +15,11 @@ Context: The assignment requires two domains that could later become separate se
 Decision: `domains/solver` only works with plain Python dicts (a cue position, a list of balls) and never imports `db` or `domains/layouts`. `app.py` is the only place that connects the two, by reading a layout from the repository and handing it to `find_runout`.
 Alternatives considered: attaching a `solve()` method directly onto the layout model/row so persistence and computation live together --> rejected because it would tie the solver's tests to a database, make swapping storage later harder and blur exactly the seam I need to point to for a future service split.
 Consequences: I can unit-test the solver with zero database setup (already reflected in the coverage numbers), and moving it into its own service later would only mean replacing an in-process function call in `app.py` with an HTTP call. Nothing inside `domains/solver` itself would need to change.
+
+## [3]. Schema: balls live in their own table, not a JSON column
+Date: 2026-09-28
+Status: Decided
+Context: A layout has a variable number of balls (1 to `MAX_BALLS`), and I need to query them back in a specific order (`ORDER BY ball_number`) without loading and parsing the whole layout just to look at one ball.
+Decision: `layouts` (one row per saved table position) has two child tables: `layout_balls` (one row per ball, `layout_id` foreign key, `ball_number`/`x`/`y`) and `attempts` (one row per logged attempt at that layout, `layout_id` foreign key, `succeeded`/`notes`). Both are a standard one-to-many relationship off `layouts`.
+Alternatives considered: storing the ball list as a single JSON-encoded text column on `layouts` — rejected because SQLite can't enforce or query into that structure at the schema level, `get_layout`'s `ORDER BY ball_number` would become application-side sorting after parsing JSON, and adding a per-ball field later (e.g. "was this ball potted") would mean a JSON shape migration instead of a plain `ALTER TABLE`.
+Consequences: `get_layout` needs two queries (one for the layout, one for its balls) instead of one, but each ball is individually queryable and indexable, and the schema stays a plain relational diagram instead of an opaque blob.

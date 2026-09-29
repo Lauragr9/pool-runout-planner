@@ -26,8 +26,8 @@ python app.py
 
 By default it listens on port `5000` and stores the SQLite database at `data/runout.db`. Configurable via environment variables:
 
-- `PORT` — listening port (default `5000`)
-- `DATA_DIR` — folder where `runout.db` is stored (default `data`)
+- `PORT` —-> listening port (default `5000`)
+- `DATA_DIR` —-> folder where `runout.db` is stored (default `data`)
 
 Open `http://localhost:<PORT>/` in the browser, click on the table to place the cue ball and the object balls, then click "Save & Solve". After a successful solve you can log whether you actually ran out with it; "View history" lists recent layouts and their logged attempts.
 

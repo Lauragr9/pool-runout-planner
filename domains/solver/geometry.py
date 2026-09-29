@@ -57,14 +57,15 @@ def cut_angle_degrees(cue_pos, object_ball, pocket):
 
 def stun_rest_position(cue_pos, object_ball, pocket, ball_radius=DEFAULT_BALL_RADIUS,
                         travel_distance=STUN_TANGENT_TRAVEL):
-    """Where the cue ball ends up after a stun shot (no spin): it does not stop
-    dead at the contact point, it keeps sliding along the tangent line -
-    perpendicular to the direction the object ball just went. That tangent
-    direction is exactly the part of the cue ball's incoming velocity left
-    over once the component along the line of centers is transferred to the
-    object ball, so we get it by projecting the incoming direction off the
-    impact direction. For a straight-in shot there is no leftover component
-    and the cue ball genuinely does stop at the contact point.
+    """Where the cue ball ends up after a stun shot (no spin): As in 
+    real-life pool, it does not stop dead at the contact point, it keeps 
+    sliding along the tangent line: perpendicular to the direction the 
+    object ball just went. That tangent direction is exactly the part of 
+    the cue ball's incoming velocity left over once the component along 
+    the line of centers is transferred to the object ball, so we get it by
+    projecting the incoming direction off the impact direction. For a 
+    straight-in shot there is no leftover component and the cue ball genuinely 
+    does stop at the contact point.
     """
     ghost = ghost_ball_position(object_ball, pocket, ball_radius)
 

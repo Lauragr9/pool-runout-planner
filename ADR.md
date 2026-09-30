@@ -8,13 +8,13 @@ Decision: I use Flask with the standard library's `sqlite3` (no ORM) and Jinja t
 Alternatives considered: Django, which brings an ORM, an admin panel, and an app system built for projects with many models and complex views. But it's far more than I need for two small domains and a single page; FastAPI, whose async support buys nothing here since the app is used by one person at a time and there is no concurrent I/O to take advantage of.
 Consequences: Less boilerplate and fewer dependencies than Django, but I have to write SQL queries by hand (manageable with two related tables) and I don't get automatic payload validation the way FastAPI with Pydantic would give me.
 
-## [2]. Domain boundary: the solver has no persistence dependency
-Date: 2026-09-27
+## [2]. Domain boundary: the solver's algorithm stays pure, its persistence is its own
+Date: 2026-09-30
 Status: Decided
-Context: The assignment requires two domains that could later become separate services, so I need a real seam between them, not just two folders that still reach into each other's internals.
-Decision: `domains/solver` only works with plain Python dicts (a cue position, a list of balls) and never imports `db` or `domains/layouts`. `app.py` is the only place that connects the two, by reading a layout from the repository and handing it to `find_runout`.
-Alternatives considered: attaching a `solve()` method directly onto the layout model/row so persistence and computation live together --> rejected because it would tie the solver's tests to a database, make swapping storage later harder and blur exactly the seam I need to point to for a future service split.
-Consequences: I can unit-test the solver with zero database setup (already reflected in the coverage numbers), and moving it into its own service later would only mean replacing an in-process function call in `app.py` with an HTTP call. Nothing inside `domains/solver` itself would need to change.
+Context: The assignment requires each domain to demonstrably read/write through SQLite. I originally kept `domains/solver` entirely free of any database dependency, so the solver's only real claim to using SQLite was indirect (the layout `app.py` reads for it before calling it).
+Decision: `engine.py` and `geometry.py` still only ever work with plain Python dicts and never import `db`: they stay unit-testable with zero database setup. A separate `domains/solver/results_repository.py` (mirroring `domains/layouts/repository.py`) now saves every computed result to its own `solves` table, and `GET /api/history` reads those saved results back instead of recomputing them each time.
+Alternatives considered: keeping the original zero-dependency design and relying on the solver always running on data that was itself read from SQLite --> rejected because it left the domain's own SQLite usage implicit rather than direct, and a persisted results log also gives a genuine audit trail (what the solver actually said at the time, even if the algorithm's parameters change later).
+Consequences: the pure algorithm keeps its fast, database-free test suite, but the solver domain now has its own write path and its own table, symmetric with the layouts domain. It also means `/api/history` shows a layout that hasn't been solved yet as "not solved" instead of always computing something for it.
 
 ## [3]. Schema: balls live in their own table, not a JSON column
 Date: 2026-09-28

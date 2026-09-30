@@ -27,6 +27,15 @@ CREATE TABLE IF NOT EXISTS attempts (
     succeeded INTEGER,
     notes TEXT
 );
+
+CREATE TABLE IF NOT EXISTS solves (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    layout_id INTEGER NOT NULL REFERENCES layouts(id),
+    computed_at TEXT NOT NULL,
+    possible INTEGER NOT NULL,
+    failed_at INTEGER,
+    order_json TEXT
+);
 """
 
 

@@ -7,9 +7,9 @@ Meant as an analysis tool **between games** (like consulting a chess engine afte
 ## Structure (two domains)
 
 - `domains/layouts/` —-> **Layouts & sessions**: SQLite persistence of ball positions and the player's real attempts.
-- `domains/solver/` —-> **Solver engine**: geometry (which shots are blocked by other balls?) plus a backtracking search over the shot order. It never writes to the database, only reads a layout and returns a result.
+- `domains/solver/` —-> **Solver engine**: geometry (which shots are blocked by other balls?) plus a backtracking search over the shot order. The algorithm itself (`engine.py`, `geometry.py`) never touches the database, but `results_repository.py` saves every computed result to its own `solves` table.
 
-The solver does not enumerate every possible sequence: it returns the best one it finds, or the point where it stops being possible. See `ADR.md` for the reasoning.
+The solver does not enumerate every possible sequence: it returns the best one it finds, or the point where it stops being possible. "View history" shows the saved result for each layout, not a recomputed one. A layout that hasn't been solved yet shows as "Not solved yet." See `ADR.md` for the reasoning.
 
 ## Requirements
 
@@ -40,7 +40,7 @@ pip install -r requirements.txt
 python -m pytest --cov=domains --cov-report=term-missing
 ```
 
-Current result: **22 tests, 98% coverage across `domains/layouts` and `domains/solver`**.
+Current result: **26 tests, 98% coverage across `domains/layouts` and `domains/solver`**.
 
 ## AI disclosure statement
 

@@ -343,7 +343,12 @@ async function loadHistory() {
 
     const solutionBox = document.createElement("div");
     solutionBox.className = "history-solution";
-    if (layout.solution.possible) {
+    if (layout.solution === null) {
+      const note = document.createElement("p");
+      note.className = "placeholder";
+      note.textContent = "Not solved yet.";
+      solutionBox.appendChild(note);
+    } else if (layout.solution.possible) {
       const shotList = document.createElement("ol");
       shotList.className = "history-shot-list";
       layout.solution.order.forEach((step) => {

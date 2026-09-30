@@ -4,6 +4,7 @@ from flask import Flask, jsonify, render_template, request
 
 from db import init_db
 from domains.layouts import repository as layouts_repo
+from domains.solver import results_repository as solver_results
 from domains.solver.engine import find_runout
 
 
@@ -34,6 +35,7 @@ def create_app():
         if layout is None:
             return jsonify({"error": "not found"}), 404
         result = find_runout(layout["cue"], layout["balls"])
+        solver_results.save_solve(layout_id, result)
         return jsonify(result)
 
     @app.post("/api/layouts/<int:layout_id>/attempts")
@@ -46,7 +48,7 @@ def create_app():
     def history():
         layouts = layouts_repo.list_recent_layouts()
         for layout in layouts:
-            layout["solution"] = find_runout(layout["cue"], layout["balls"])
+            layout["solution"] = solver_results.get_latest_solve(layout["id"])
         return jsonify(layouts)
 
     return app

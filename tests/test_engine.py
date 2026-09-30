@@ -73,3 +73,22 @@ def test_cue_rest_position_never_ends_up_off_the_table():
     rest = result["order"][0]["cue_rest_position"]
     assert DEFAULT_BALL_RADIUS <= rest["x"] <= TABLE_WIDTH - DEFAULT_BALL_RADIUS
     assert DEFAULT_BALL_RADIUS <= rest["y"] <= TABLE_HEIGHT - DEFAULT_BALL_RADIUS
+
+
+def test_search_backtracks_when_the_easiest_ball_leads_to_a_dead_end():
+    # Ball 3 has the easiest angle of the three when checked on its own (~4.9°,
+    # versus ~15.3° for ball 2 and ~18.0° for ball 1), so a greedy search with
+    # no backtracking would shoot it first. But shooting ball 3 first leaves
+    # the cue in a position from which neither ball 1 nor ball 2 has a valid
+    # shot (verified directly: _search from that rest position returns None).
+    # A correct search must notice that dead end and fall back to ball 2
+    # instead, which does lead to a full run-out.
+    cue = {"x": 50, "y": 25}
+    ball1 = {"number": 1, "x": 66.4, "y": 12.9}
+    ball2 = {"number": 2, "x": 76.7, "y": 34.6}
+    ball3 = {"number": 3, "x": 50.4, "y": 13.2}
+
+    result = find_runout(cue, [ball1, ball2, ball3])
+
+    assert result["possible"] is True
+    assert [step["ball"] for step in result["order"]] == [2, 3, 1]

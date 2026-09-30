@@ -40,7 +40,7 @@ pip install -r requirements.txt
 python -m pytest --cov=domains --cov-report=term-missing
 ```
 
-Current result: **26 tests, 98% coverage across `domains/layouts` and `domains/solver`**.
+Current result: **27 tests, 98% coverage across `domains/layouts` and `domains/solver`**.
 
 ## AI disclosure statement
 

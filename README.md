@@ -11,6 +11,23 @@ Meant as an analysis tool **between games** (like consulting a chess engine afte
 
 The solver does not enumerate every possible sequence: it returns the best one it finds, or the point where it stops being possible. "View history" shows the saved result for each layout, not a recomputed one. A layout that hasn't been solved yet shows as "Not solved yet." See `ADR.md` for the reasoning.
 
+## Architecture
+
+The whole app is a single Flask process (`app.py`), meaning no background workers, queues, or separate services, matching the single-process/single-container deployment contract.
+
+A browser request arrives as JSON over `fetch`, hits a Flask route, and that route is the only place that talks to both domains: it reads or writes through `domains/layouts/repository.py`, hands plain data to the pure solver algorithm in `domains/solver/engine.py`, and saves the result through `domains/solver/results_repository.py`. Everything persists to one SQLite file (see Configuration below).
+
+See [`docs/diagrams.md`](docs/diagrams.md) for the architecture and database schema diagrams, kept in sync with ADR-2 and ADR-3.
+
+## Configuration
+
+The app is configured entirely through environment variables, so no `.env` file is required, and nothing needs editing in the source to reconfigure it:
+
+- `PORT` —-> port Flask listens on (default `5000`)
+- `DATA_DIR` —-> folder where the SQLite file (`runout.db`) is stored (default `data`)
+
+Both have sane defaults, so `python app.py` with no environment variables set works out of the box.
+
 ## Requirements
 
 - Python 3.10+
@@ -24,10 +41,7 @@ pip install -r requirements.txt
 python app.py
 ```
 
-By default it listens on port `5000` and stores the SQLite database at `data/runout.db`. Configurable via environment variables:
-
-- `PORT` —-> listening port (default `5000`)
-- `DATA_DIR` —-> folder where `runout.db` is stored (default `data`)
+By default it listens on port `5000` and stores the SQLite database at `data/runout.db` — see Configuration above to change either.
 
 Open `http://localhost:<PORT>/` in the browser, click on the table to place the cue ball and the object balls, then click "Save & Solve". After a successful solve you can log whether you actually ran out with it; "View history" lists recent layouts and their logged attempts.
 

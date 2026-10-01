@@ -51,6 +51,21 @@ function drawGrid() {
   }
 }
 
+const BALL_COLORS = [
+  "#D4A017", // 1 yellow
+  "#1E5AA8", // 2 blue
+  "#C62828", // 3 red
+  "#7B1FA2", // 4 purple
+  "#EF6C00", // 5 orange
+  "#2E7D32", // 6 green
+  "#6D2932", // 7 maroon
+  "#111111", // 8 black
+];
+
+function ballColor(number) {
+  return BALL_COLORS[(number - 1) % BALL_COLORS.length];
+}
+
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawGrid();
@@ -66,7 +81,7 @@ function draw() {
     drawBall(state.cue, "#fff", null);
   }
   for (const ball of state.balls) {
-    drawBall(ball, "#d62828", ball.number);
+    drawBall(ball, ballColor(ball.number), ball.number);
   }
 
   if (state.solution) {

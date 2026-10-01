@@ -1,6 +1,6 @@
 from . import geometry
 
-MAX_CUT_ANGLE = 80  # degrees; beyond this a shot is treated as unrealistic to attempt
+MAX_CUT_ANGLE = 50  # degrees; beyond this a shot is treated as unrealistic to attempt
 MAX_BALLS = 8  # keeps the backtracking search fast enough for a single HTTP request
 
 TABLE_WIDTH = 100

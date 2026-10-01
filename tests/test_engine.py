@@ -76,19 +76,36 @@ def test_cue_rest_position_never_ends_up_off_the_table():
 
 
 def test_search_backtracks_when_the_easiest_ball_leads_to_a_dead_end():
-    # Ball 3 has the easiest angle of the three when checked on its own (~4.9°,
-    # versus ~15.3° for ball 2 and ~18.0° for ball 1), so a greedy search with
-    # no backtracking would shoot it first. But shooting ball 3 first leaves
-    # the cue in a position from which neither ball 1 nor ball 2 has a valid
-    # shot (verified directly: _search from that rest position returns None).
-    # A correct search must notice that dead end and fall back to ball 2
-    # instead, which does lead to a full run-out.
+    # Ball 1 has the easiest angle of the three when checked on its own
+    # (~13.0°, versus ~26.8° for ball 2 and ~40.0° for ball 3), so a greedy
+    # search with no backtracking would shoot it first. But shooting ball 1
+    # first leaves the cue in a position from which neither ball 2 nor ball 3
+    # has a valid shot, for any of the three shot types (verified directly:
+    # _search from each of those rest positions returns None). A correct
+    # search must notice that dead end and fall back to ball 2 instead,
+    # which does lead to a full run-out.
     cue = {"x": 50, "y": 25}
-    ball1 = {"number": 1, "x": 66.4, "y": 12.9}
-    ball2 = {"number": 2, "x": 76.7, "y": 34.6}
-    ball3 = {"number": 3, "x": 50.4, "y": 13.2}
+    ball1 = {"number": 1, "x": 69.2, "y": 37.6}
+    ball2 = {"number": 2, "x": 29.3, "y": 29.4}
+    ball3 = {"number": 3, "x": 25.9, "y": 27.4}
 
     result = find_runout(cue, [ball1, ball2, ball3])
 
     assert result["possible"] is True
     assert [step["ball"] for step in result["order"]] == [2, 3, 1]
+
+
+def test_search_tries_other_shot_types_before_giving_up_on_a_ball():
+    # for this ball and pocket, "follow" (tried first) and "draw" both leave
+    # the cue ball unable to reach the other ball afterward, but "stun" does
+    # work (verified directly for all three). The search must try all three
+    # shot types for the same ball before moving on to a different ball.
+    cue = {"x": 50, "y": 25}
+    ball1 = {"number": 1, "x": 85.4, "y": 17.0}
+    ball2 = {"number": 2, "x": 37.5, "y": 11.6}
+
+    result = find_runout(cue, [ball1, ball2])
+
+    assert result["possible"] is True
+    assert result["order"][0]["ball"] == 2
+    assert result["order"][0]["shot_type"] == "stun"

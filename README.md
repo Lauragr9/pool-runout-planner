@@ -9,7 +9,7 @@ Meant as an analysis tool **between games** (like consulting a chess engine afte
 - `domains/layouts/` —-> **Layouts & sessions**: SQLite persistence of ball positions and the player's real attempts.
 - `domains/solver/` —-> **Solver engine**: geometry (which shots are blocked by other balls?) plus a backtracking search over the shot order. The algorithm itself (`engine.py`, `geometry.py`) never touches the database, but `results_repository.py` saves every computed result to its own `solves` table.
 
-The solver does not enumerate every possible sequence: it returns the best one it finds, or the point where it stops being possible. "View history" shows the saved result for each layout, not a recomputed one. A layout that hasn't been solved yet shows as "Not solved yet." See `ADR.md` for the reasoning.
+The solver does not enumerate every possible sequence: it returns the best one it finds, or the point where it stops being possible. For each shot it also picks a shot type (stun, follow, or draw), based on which one actually leaves a solvable position for the rest of the balls, not just a fixed default. "View history" shows the saved result for each layout, not a recomputed one. A layout that hasn't been solved yet shows as "Not solved yet." See `ADR.md` for the reasoning.
 
 ## Architecture
 
@@ -54,8 +54,8 @@ pip install -r requirements.txt
 python -m pytest --cov=domains --cov-report=term-missing
 ```
 
-Current result: **27 tests, 98% coverage across `domains/layouts` and `domains/solver`**.
+Current result: **33 tests, 98% coverage across `domains/layouts` and `domains/solver`**.
 
 ## AI disclosure statement
 
-See `AI_USAGE.md` for the detailed log. Summary: I acknowledge the use of Claude (Anthropic) to generate the initial project structure, the solver engine (geometry and backtracking search) and its test suite. The prompts used include the definition of the use case, an explicit request that the solver return a single recommended sequence instead of enumerating every possible play, and the request to scaffold the repository. The output was used as the initial code scaffold, reviewed and verified (including actually running the tests and starting the app) before being accepted.
+See `AI_USAGE.md` for the detailed log. Summary: I acknowledge the use of Claude (Anthropic) throughout this project, from the initial scaffold (the two domains, the Flask app, the solver engine, and its test suite) through later iterations: the SQLite schema and the solver's own results table, the result-display redesign, the cue ball's rest-position physics (translation via friction, rotation via preserved spin for follow/draw, and the solver choosing a shot type per ball), and the tests covering all of it. The prompts used include the use case definition, explicit scope decisions (e.g. the solver returning one recommended sequence instead of enumerating every play), direct feedback after testing features live in the browser (e.g. the rest position landing outside the table, or looking too lateral to be realistic), and requests to verify claims empirically (e.g. measuring solvability rates and search performance) rather than taking them on faith. Every accepted output was reviewed and verified before being kept, including running the test suite, exercising the app in the browser, and checking specific computed values by hand or with throwaway scripts.

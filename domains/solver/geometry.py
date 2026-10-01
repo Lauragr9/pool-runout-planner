@@ -1,7 +1,10 @@
 import math
 
 DEFAULT_BALL_RADIUS = 1.5
-STUN_TANGENT_TRAVEL = 15.0  # arbitrary fixed distance; we don't model shot speed
+DEFAULT_SHOT_SPEED = 30.0  # arbitrary table-units/second; a "medium-firm" shot
+SLIDE_FRICTION = 30.0  # arbitrary deceleration constant (folds in mu and g)
+FOLLOW_BLEND = 0.65  # how far the exit direction rotates toward "incoming" for follow
+DRAW_BLEND = 0.65  # how far it rotates toward "-incoming" for draw
 
 
 def _normalize(v):
@@ -55,17 +58,36 @@ def cut_angle_degrees(cue_pos, object_ball, pocket):
     return math.degrees(math.acos(dot))
 
 
-def stun_rest_position(cue_pos, object_ball, pocket, ball_radius=DEFAULT_BALL_RADIUS,
-                        travel_distance=STUN_TANGENT_TRAVEL):
-    """Where the cue ball ends up after a stun shot (no spin): As in 
-    real-life pool, it does not stop dead at the contact point, it keeps 
-    sliding along the tangent line: perpendicular to the direction the 
-    object ball just went. That tangent direction is exactly the part of 
-    the cue ball's incoming velocity left over once the component along 
-    the line of centers is transferred to the object ball, so we get it by
-    projecting the incoming direction off the impact direction. For a 
-    straight-in shot there is no leftover component and the cue ball genuinely 
-    does stop at the contact point.
+def cue_rest_position(cue_pos, object_ball, pocket, shot_type="stun",
+                       ball_radius=DEFAULT_BALL_RADIUS, speed=DEFAULT_SHOT_SPEED):
+    """Where the cue ball ends up after the shot: an approximation that
+    involves both translation and rotation, not just the instant-of-contact
+    geometry.
+
+    Translation: the cue ball does not stop dead at the contact point, it
+    keeps sliding along the tangent line (perpendicular to the direction the
+    object ball just went, since that's the part of the cue ball's incoming
+    velocity left over once the component along the line of centers is
+    transferred to the object ball). How far it slides is a real kinematics
+    question, not a fixed number: distance = speed^2 / (2 * SLIDE_FRICTION).
+
+    Rotation: a collision only transfers linear velocity, not spin, so
+    whatever spin the cue ball already had keeps pointing along its own
+    original approach direction ("incoming"), not toward the object ball's
+    direction. A rolling cue ball (shot_type="follow") therefore doesn't
+    just add a bit of forward motion on top of the tangent kick, its exit
+    direction actually rotates partway from the tangent toward "incoming"
+    (by FOLLOW_BLEND), and a backspun one (shot_type="draw") rotates the
+    other way, toward "-incoming" (by DRAW_BLEND), while keeping the same
+    overall slide distance. A pure "stun" shot carries no spin, so the exit
+    direction stays exactly the tangent line.
+
+    This is a simplified, qualitative model (fixed FOLLOW_BLEND/DRAW_BLEND,
+    one assumed shot speed, no cushions) rather than a full rigid-body
+    simulation. For a straight-in shot there is no tangent component left
+    at all, so "stun" genuinely stops dead at the contact point, while
+    "follow"/"draw" still roll straight through forward or backward along
+    the original line.
     """
     ghost = ghost_ball_position(object_ball, pocket, ball_radius)
 
@@ -73,13 +95,27 @@ def stun_rest_position(cue_pos, object_ball, pocket, ball_radius=DEFAULT_BALL_RA
     impact = _normalize((pocket["x"] - object_ball["x"], pocket["y"] - object_ball["y"]))
 
     dot = incoming[0] * impact[0] + incoming[1] * impact[1]
-    tangent = (incoming[0] - impact[0] * dot, incoming[1] - impact[1] * dot)
-    tangent_length = math.hypot(*tangent)
-    if tangent_length < 1e-9:
-        return ghost
+    tangent = _normalize((incoming[0] - impact[0] * dot, incoming[1] - impact[1] * dot))
 
-    tangent_n = (tangent[0] / tangent_length, tangent[1] / tangent_length)
+    if shot_type == "follow":
+        blended = (
+            tangent[0] * (1 - FOLLOW_BLEND) + incoming[0] * FOLLOW_BLEND,
+            tangent[1] * (1 - FOLLOW_BLEND) + incoming[1] * FOLLOW_BLEND,
+        )
+    elif shot_type == "draw":
+        blended = (
+            tangent[0] * (1 - DRAW_BLEND) - incoming[0] * DRAW_BLEND,
+            tangent[1] * (1 - DRAW_BLEND) - incoming[1] * DRAW_BLEND,
+        )
+    elif shot_type == "stun":
+        blended = tangent
+    else:
+        raise ValueError("shot_type must be 'stun', 'follow', or 'draw'")
+
+    exit_direction = _normalize(blended)
+    slide_distance = speed ** 2 / (2 * SLIDE_FRICTION)
+
     return {
-        "x": ghost["x"] + tangent_n[0] * travel_distance,
-        "y": ghost["y"] + tangent_n[1] * travel_distance,
+        "x": ghost["x"] + exit_direction[0] * slide_distance,
+        "y": ghost["y"] + exit_direction[1] * slide_distance,
     }

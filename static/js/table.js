@@ -229,12 +229,18 @@ function renderResult(result, layoutId) {
       badge.textContent = diff.label;
       summary.appendChild(badge);
 
+      const shotTypeBadge = document.createElement("span");
+      shotTypeBadge.className = "shot-type-badge";
+      shotTypeBadge.textContent = step.shot_type;
+      summary.appendChild(shotTypeBadge);
+
       detail.appendChild(summary);
 
       const technical = document.createElement("div");
       technical.className = "shot-technical";
       const rest = step.cue_rest_position;
       technical.innerHTML =
+        `<p>Shot type: ${step.shot_type}</p>` +
         `<p>Cut angle: ${step.cut_angle.toFixed(1)}°</p>` +
         `<p>Pocket coordinates: (${step.pocket.x}, ${step.pocket.y})</p>` +
         `<p>Cue ball rests at: (${rest.x.toFixed(1)}, ${rest.y.toFixed(1)})</p>`;
@@ -369,7 +375,8 @@ async function loadHistory() {
       layout.solution.order.forEach((step) => {
         const shotItem = document.createElement("li");
         const diff = shotDifficulty(step.cut_angle);
-        shotItem.textContent = `Ball ${step.ball} → ${pocketName(step.pocket)} (${diff.label})`;
+        const shotTypeNote = step.shot_type ? `, ${step.shot_type}` : "";
+        shotItem.textContent = `Ball ${step.ball} → ${pocketName(step.pocket)} (${diff.label}${shotTypeNote})`;
         shotList.appendChild(shotItem);
       });
       solutionBox.appendChild(shotList);

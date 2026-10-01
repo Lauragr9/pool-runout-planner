@@ -123,6 +123,17 @@ button {
   color: #a33025;
 }
 
+.shot-type-badge {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
 .blocked-note {
   color: #b3261e;
   margin: 0;

@@ -40,7 +40,7 @@ def create_app():
             result = find_runout(layout["cue"], layout["balls"], game_mode=game_mode)
         except ValueError as error:
             return jsonify({"error": str(error)}), 400
-        solver_results.save_solve(layout_id, result)
+        solver_results.save_solve(layout_id, result, game_mode)
         return jsonify(result)
 
     @app.post("/api/layouts/<int:layout_id>/attempts")

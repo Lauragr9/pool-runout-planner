@@ -34,7 +34,8 @@ CREATE TABLE IF NOT EXISTS solves (
     computed_at TEXT NOT NULL,
     possible INTEGER NOT NULL,
     failed_at INTEGER,
-    order_json TEXT
+    order_json TEXT,
+    game_mode TEXT
 );
 """
 

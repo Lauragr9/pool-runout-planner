@@ -37,6 +37,12 @@ const EIGHT_BALL_NUMBER = 8;
 const NINE_BALL_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 const EIGHT_BALL_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
 
+const GAME_MODE_LABELS = {
+  freeform: "Freeform",
+  nine_ball: "9-Ball",
+  eight_ball: "8-Ball",
+};
+
 function resetBoard() {
   const fresh = freshBoard();
   boardsByMode[gameMode] = fresh;
@@ -541,7 +547,10 @@ async function loadHistory() {
     const summary = document.createElement("p");
     summary.className = "history-summary";
     const ballWord = layout.balls.length === 1 ? "ball" : "balls";
-    summary.textContent = `Layout #${layout.id} — ${layout.balls.length} ${ballWord}`;
+    const modeLabel = layout.solution ? GAME_MODE_LABELS[layout.solution.game_mode] : null;
+    summary.textContent = modeLabel
+      ? `Layout #${layout.id}: ${layout.balls.length} ${ballWord} (${modeLabel})`
+      : `Layout #${layout.id}: ${layout.balls.length} ${ballWord}`;
     item.appendChild(summary);
 
     const positions = document.createElement("p");

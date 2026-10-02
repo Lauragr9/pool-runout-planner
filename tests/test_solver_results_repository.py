@@ -29,7 +29,7 @@ def test_save_and_get_a_possible_solve_roundtrip(tmp_path, monkeypatch):
     results_repo.save_solve(layout_id, result)
     saved = results_repo.get_latest_solve(layout_id)
 
-    assert saved == result
+    assert saved == {**result, "game_mode": "freeform"}
 
 
 def test_save_and_get_an_impossible_solve_roundtrip(tmp_path, monkeypatch):
@@ -37,10 +37,10 @@ def test_save_and_get_an_impossible_solve_roundtrip(tmp_path, monkeypatch):
     layout_id = layouts_repo.create_layout({"x": 0, "y": 0}, [])
     result = {"possible": False, "failed_at": 3, "order": None}
 
-    results_repo.save_solve(layout_id, result)
+    results_repo.save_solve(layout_id, result, game_mode="eight_ball")
     saved = results_repo.get_latest_solve(layout_id)
 
-    assert saved == result
+    assert saved == {**result, "game_mode": "eight_ball"}
 
 
 def test_get_latest_solve_returns_the_most_recent_one(tmp_path, monkeypatch):
@@ -49,7 +49,7 @@ def test_get_latest_solve_returns_the_most_recent_one(tmp_path, monkeypatch):
     first = {"possible": False, "failed_at": 2, "order": None}
     second = {"possible": True, "failed_at": None, "order": []}
 
-    results_repo.save_solve(layout_id, first)
-    results_repo.save_solve(layout_id, second)
+    results_repo.save_solve(layout_id, first, game_mode="freeform")
+    results_repo.save_solve(layout_id, second, game_mode="nine_ball")
 
-    assert results_repo.get_latest_solve(layout_id) == second
+    assert results_repo.get_latest_solve(layout_id) == {**second, "game_mode": "nine_ball"}

@@ -68,5 +68,6 @@ erDiagram
         int possible
         int failed_at
         text order_json
+        text game_mode
     }
 ```

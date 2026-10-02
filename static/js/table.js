@@ -87,6 +87,12 @@ function isStripeNumber(number) {
   return number >= 9 && number <= 15;
 }
 
+function shouldDrawAsStripe(number) {
+  // solids/stripes is an 8-ball concept; 9-ball reuses ball 9's color but
+  // doesn't care about the stripe pattern, so only show it in 8-ball mode
+  return state.gameMode === "eight_ball" && isStripeNumber(number);
+}
+
 function ballColor(number) {
   if (number === EIGHT_BALL_NUMBER) return EIGHT_BALL_COLOR;
   if (isStripeNumber(number)) return BALL_COLORS[(number - 9) % BALL_COLORS.length];
@@ -153,7 +159,7 @@ function drawBall(pos, number) {
   ctx.arc(x, y, r, 0, Math.PI * 2);
   ctx.clip();
 
-  if (isStripeNumber(number)) {
+  if (shouldDrawAsStripe(number)) {
     ctx.fillStyle = "#fff";
     ctx.fillRect(x - r, y - r, r * 2, r * 2);
     ctx.fillStyle = ballColor(number);
@@ -169,7 +175,7 @@ function drawBall(pos, number) {
   ctx.strokeStyle = "#000";
   ctx.stroke();
 
-  ctx.fillStyle = isStripeNumber(number) ? "#111" : "#fff";
+  ctx.fillStyle = shouldDrawAsStripe(number) ? "#111" : "#fff";
   ctx.font = "12px sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
@@ -377,7 +383,7 @@ function updateBallPalette() {
     btn.type = "button";
     btn.className = "palette-number";
     btn.textContent = String(number);
-    if (isStripeNumber(number)) {
+    if (shouldDrawAsStripe(number)) {
       const color = ballColor(number);
       btn.style.background = `repeating-linear-gradient(45deg, ${color}, ${color} 4px, #fff 4px, #fff 8px)`;
       btn.style.color = "#111";

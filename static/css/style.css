@@ -44,10 +44,16 @@ body {
 .palette-number {
   width: 2rem;
   height: 2rem;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 50%;
   border: 2px solid #999;
   cursor: pointer;
   font-weight: 600;
+  line-height: 1;
 }
 
 .palette-number.armed {

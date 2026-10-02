@@ -34,7 +34,12 @@ def create_app():
         layout = layouts_repo.get_layout(layout_id)
         if layout is None:
             return jsonify({"error": "not found"}), 404
-        result = find_runout(layout["cue"], layout["balls"])
+        data = request.get_json(silent=True) or {}
+        game_mode = data.get("game_mode", "freeform")
+        try:
+            result = find_runout(layout["cue"], layout["balls"], game_mode=game_mode)
+        except ValueError as error:
+            return jsonify({"error": str(error)}), 400
         solver_results.save_solve(layout_id, result)
         return jsonify(result)
 

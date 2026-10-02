@@ -7,9 +7,18 @@
 </head>
 <body>
   <h1>Run-Out Planner</h1>
-  <p>
+
+  <div class="mode-tabs" id="mode-tabs">
+    <button class="mode-tab active" data-mode="freeform">Freeform</button>
+    <button class="mode-tab" data-mode="nine_ball">9-Ball</button>
+    <button class="mode-tab" data-mode="eight_ball">8-Ball</button>
+  </div>
+
+  <p id="instructions">
     Click to place the cue ball (first click), then the object balls, in any order.
   </p>
+
+  <div id="ball-palette" class="ball-palette" hidden></div>
 
   <canvas id="table" width="800" height="400"></canvas>
 

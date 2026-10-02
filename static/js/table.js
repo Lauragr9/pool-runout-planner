@@ -9,8 +9,29 @@ const canvas = document.getElementById("table");
 const ctx = canvas.getContext("2d");
 const scale = canvas.width / TABLE_WIDTH;
 
-let state = { cue: null, balls: [], solution: null };
-let nextBallNumber = 1;
+let state = {
+  gameMode: "freeform",
+  cue: null,
+  balls: [],
+  solution: null,
+  armedBallNumber: null,
+  nextBallNumber: 1,
+};
+
+const EIGHT_BALL_NUMBER = 8;
+const NINE_BALL_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+const EIGHT_BALL_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+
+function resetBoard() {
+  state.cue = null;
+  state.balls = [];
+  state.solution = null;
+  state.armedBallNumber = null;
+  state.nextBallNumber = 1;
+  document.getElementById("result").innerHTML = "";
+  updateBallPalette();
+  updateInstructions();
+}
 
 function toLogical(clientX, clientY) {
   const rect = canvas.getBoundingClientRect();
@@ -52,17 +73,23 @@ function drawGrid() {
 }
 
 const BALL_COLORS = [
-  "#D4A017", // 1 yellow
-  "#1E5AA8", // 2 blue
-  "#C62828", // 3 red
-  "#7B1FA2", // 4 purple
-  "#EF6C00", // 5 orange
-  "#2E7D32", // 6 green
-  "#6D2932", // 7 maroon
-  "#111111", // 8 black
+  "#D4A017", // 1 / 9 yellow
+  "#1E5AA8", // 2 / 10 blue
+  "#C62828", // 3 / 11 red
+  "#7B1FA2", // 4 / 12 purple
+  "#EF6C00", // 5 / 13 orange
+  "#2E7D32", // 6 / 14 green
+  "#6D2932", // 7 / 15 maroon
 ];
+const EIGHT_BALL_COLOR = "#111111";
+
+function isStripeNumber(number) {
+  return number >= 9 && number <= 15;
+}
 
 function ballColor(number) {
+  if (number === EIGHT_BALL_NUMBER) return EIGHT_BALL_COLOR;
+  if (isStripeNumber(number)) return BALL_COLORS[(number - 9) % BALL_COLORS.length];
   return BALL_COLORS[(number - 1) % BALL_COLORS.length];
 }
 
@@ -78,10 +105,10 @@ function draw() {
   }
 
   if (state.cue) {
-    drawBall(state.cue, "#fff", null);
+    drawCueBall(state.cue);
   }
   for (const ball of state.balls) {
-    drawBall(ball, ballColor(ball.number), ball.number);
+    drawBall(ball, ball.number);
   }
 
   if (state.solution) {
@@ -105,20 +132,48 @@ function drawSolution(order) {
   });
 }
 
-function drawBall(pos, color, label) {
+function drawCueBall(pos) {
+  const x = pos.x * scale;
+  const y = pos.y * scale;
   ctx.beginPath();
-  ctx.arc(pos.x * scale, pos.y * scale, 12, 0, Math.PI * 2);
-  ctx.fillStyle = color;
+  ctx.arc(x, y, 12, 0, Math.PI * 2);
+  ctx.fillStyle = "#fff";
   ctx.fill();
   ctx.strokeStyle = "#000";
   ctx.stroke();
-  if (label !== null && label !== undefined) {
+}
+
+function drawBall(pos, number) {
+  const x = pos.x * scale;
+  const y = pos.y * scale;
+  const r = 12;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.clip();
+
+  if (isStripeNumber(number)) {
     ctx.fillStyle = "#fff";
-    ctx.font = "12px sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(String(label), pos.x * scale, pos.y * scale);
+    ctx.fillRect(x - r, y - r, r * 2, r * 2);
+    ctx.fillStyle = ballColor(number);
+    ctx.fillRect(x - r, y - r * 0.55, r * 2, r * 1.1);
+  } else {
+    ctx.fillStyle = ballColor(number);
+    ctx.fillRect(x - r, y - r, r * 2, r * 2);
   }
+  ctx.restore();
+
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.strokeStyle = "#000";
+  ctx.stroke();
+
+  ctx.fillStyle = isStripeNumber(number) ? "#111" : "#fff";
+  ctx.font = "12px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(String(number), x, y);
 }
 
 const POCKET_NAMES = {
@@ -139,6 +194,19 @@ function shotDifficulty(cutAngle) {
   if (cutAngle < 40) return { label: "slight angle", cls: "difficulty-easy" };
   if (cutAngle < 65) return { label: "medium cut", cls: "difficulty-medium" };
   return { label: "thin cut", cls: "difficulty-hard" };
+}
+
+function renderHistoryShotList(order) {
+  const shotList = document.createElement("ol");
+  shotList.className = "history-shot-list";
+  order.forEach((step) => {
+    const shotItem = document.createElement("li");
+    const diff = shotDifficulty(step.cut_angle);
+    const shotTypeNote = step.shot_type ? `, ${step.shot_type}` : "";
+    shotItem.textContent = `Ball ${step.ball} → ${pocketName(step.pocket)} (${diff.label}${shotTypeNote})`;
+    shotList.appendChild(shotItem);
+  });
+  return shotList;
 }
 
 function renderAttemptControls(layoutId) {
@@ -191,6 +259,59 @@ function renderAttemptControls(layoutId) {
   return container;
 }
 
+function renderShotList(order) {
+  const list = document.createElement("ol");
+  list.className = "shot-list";
+
+  order.forEach((step) => {
+    const item = document.createElement("li");
+    item.className = "shot";
+
+    const ballBadge = document.createElement("span");
+    ballBadge.className = "shot-ball";
+    ballBadge.textContent = String(step.ball);
+
+    const detail = document.createElement("details");
+    detail.className = "shot-detail";
+
+    const summary = document.createElement("summary");
+
+    const target = document.createElement("span");
+    target.className = "shot-target";
+    target.textContent = `Ball ${step.ball} → ${pocketName(step.pocket)}`;
+    summary.appendChild(target);
+
+    const diff = shotDifficulty(step.cut_angle);
+    const badge = document.createElement("span");
+    badge.className = `difficulty ${diff.cls}`;
+    badge.textContent = diff.label;
+    summary.appendChild(badge);
+
+    const shotTypeBadge = document.createElement("span");
+    shotTypeBadge.className = "shot-type-badge";
+    shotTypeBadge.textContent = step.shot_type;
+    summary.appendChild(shotTypeBadge);
+
+    detail.appendChild(summary);
+
+    const technical = document.createElement("div");
+    technical.className = "shot-technical";
+    const rest = step.cue_rest_position;
+    technical.innerHTML =
+      `<p>Shot type: ${step.shot_type}</p>` +
+      `<p>Cut angle: ${step.cut_angle.toFixed(1)}°</p>` +
+      `<p>Pocket coordinates: (${step.pocket.x}, ${step.pocket.y})</p>` +
+      `<p>Cue ball rests at: (${rest.x.toFixed(1)}, ${rest.y.toFixed(1)})</p>`;
+    detail.appendChild(technical);
+
+    item.appendChild(ballBadge);
+    item.appendChild(detail);
+    list.appendChild(item);
+  });
+
+  return list;
+}
+
 function renderResult(result, layoutId) {
   const resultBox = document.getElementById("result");
   resultBox.innerHTML = "";
@@ -201,62 +322,12 @@ function renderResult(result, layoutId) {
     const shotWord = result.order.length === 1 ? "shot" : "shots";
     heading.textContent = `Run-out possible — ${result.order.length} ${shotWord} (numbers match the blue markers on the table)`;
     resultBox.appendChild(heading);
-
-    const list = document.createElement("ol");
-    list.className = "shot-list";
-
-    result.order.forEach((step) => {
-      const item = document.createElement("li");
-      item.className = "shot";
-
-      const ballBadge = document.createElement("span");
-      ballBadge.className = "shot-ball";
-      ballBadge.textContent = String(step.ball);
-
-      const detail = document.createElement("details");
-      detail.className = "shot-detail";
-
-      const summary = document.createElement("summary");
-
-      const target = document.createElement("span");
-      target.className = "shot-target";
-      target.textContent = `Ball ${step.ball} → ${pocketName(step.pocket)}`;
-      summary.appendChild(target);
-
-      const diff = shotDifficulty(step.cut_angle);
-      const badge = document.createElement("span");
-      badge.className = `difficulty ${diff.cls}`;
-      badge.textContent = diff.label;
-      summary.appendChild(badge);
-
-      const shotTypeBadge = document.createElement("span");
-      shotTypeBadge.className = "shot-type-badge";
-      shotTypeBadge.textContent = step.shot_type;
-      summary.appendChild(shotTypeBadge);
-
-      detail.appendChild(summary);
-
-      const technical = document.createElement("div");
-      technical.className = "shot-technical";
-      const rest = step.cue_rest_position;
-      technical.innerHTML =
-        `<p>Shot type: ${step.shot_type}</p>` +
-        `<p>Cut angle: ${step.cut_angle.toFixed(1)}°</p>` +
-        `<p>Pocket coordinates: (${step.pocket.x}, ${step.pocket.y})</p>` +
-        `<p>Cue ball rests at: (${rest.x.toFixed(1)}, ${rest.y.toFixed(1)})</p>`;
-      detail.appendChild(technical);
-
-      item.appendChild(ballBadge);
-      item.appendChild(detail);
-      list.appendChild(item);
-    });
-
-    resultBox.appendChild(list);
+    resultBox.appendChild(renderShotList(result.order));
     resultBox.appendChild(renderAttemptControls(layoutId));
   } else {
     const heading = document.createElement("p");
     heading.className = "solution-heading impossible";
-    heading.textContent = "No run-out possible";
+    heading.textContent = "No full run-out possible";
     resultBox.appendChild(heading);
 
     const note = document.createElement("p");
@@ -264,25 +335,98 @@ function renderResult(result, layoutId) {
     note.textContent =
       result.failed_at !== null && result.failed_at !== undefined
         ? `Blocked at ball ${result.failed_at}.`
-        : "No order works for this layout.";
+        : "No order clears the rest of the balls from here.";
     resultBox.appendChild(note);
   }
 }
 
+function updateInstructions() {
+  const instructions = document.getElementById("instructions");
+  if (state.gameMode === "nine_ball" || state.gameMode === "eight_ball") {
+    instructions.textContent =
+      "Click the cue ball onto the table first, then pick a ball number below and click where it sits.";
+  } else {
+    instructions.textContent = "Click to place the cue ball (first click), then the object balls, in any order.";
+  }
+}
+
+function paletteNumbersForMode() {
+  if (state.gameMode === "nine_ball") return NINE_BALL_NUMBERS;
+  if (state.gameMode === "eight_ball") return EIGHT_BALL_NUMBERS;
+  return [];
+}
+
+function updateBallPalette() {
+  const palette = document.getElementById("ball-palette");
+  const numbers = paletteNumbersForMode();
+  if (numbers.length === 0) {
+    palette.hidden = true;
+    return;
+  }
+  palette.hidden = false;
+  palette.innerHTML = "";
+
+  const label = document.createElement("span");
+  label.className = "ball-palette-label";
+  label.textContent = "Next ball:";
+  palette.appendChild(label);
+
+  const usedNumbers = new Set(state.balls.map((b) => b.number));
+  numbers.forEach((number) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "palette-number";
+    btn.textContent = String(number);
+    if (isStripeNumber(number)) {
+      const color = ballColor(number);
+      btn.style.background = `repeating-linear-gradient(45deg, ${color}, ${color} 4px, #fff 4px, #fff 8px)`;
+      btn.style.color = "#111";
+    } else {
+      btn.style.background = ballColor(number);
+      btn.style.color = "#fff";
+    }
+    btn.disabled = usedNumbers.has(number);
+    if (state.armedBallNumber === number) btn.classList.add("armed");
+    btn.addEventListener("click", () => {
+      state.armedBallNumber = number;
+      updateBallPalette();
+    });
+    palette.appendChild(btn);
+  });
+}
+
+document.querySelectorAll(".mode-tab").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".mode-tab").forEach((t) => t.classList.remove("active"));
+    tab.classList.add("active");
+    state.gameMode = tab.dataset.mode;
+    resetBoard();
+    draw();
+  });
+});
+
 canvas.addEventListener("click", (event) => {
   const pos = toLogical(event.clientX, event.clientY);
+
   if (!state.cue) {
     state.cue = pos;
+    draw();
+    return;
+  }
+
+  if (state.gameMode === "nine_ball" || state.gameMode === "eight_ball") {
+    if (state.armedBallNumber === null) return;
+    state.balls.push({ number: state.armedBallNumber, x: pos.x, y: pos.y });
+    state.armedBallNumber = null;
+    updateBallPalette();
   } else {
-    state.balls.push({ number: nextBallNumber++, x: pos.x, y: pos.y });
+    state.balls.push({ number: state.nextBallNumber++, x: pos.x, y: pos.y });
   }
   draw();
 });
 
 document.getElementById("reset").addEventListener("click", () => {
-  state = { cue: null, balls: [], solution: null };
-  nextBallNumber = 1;
-  document.getElementById("result").textContent = "";
+  resetBoard();
   draw();
 });
 
@@ -290,6 +434,10 @@ document.getElementById("solve").addEventListener("click", async () => {
   const resultBox = document.getElementById("result");
   if (!state.cue || state.balls.length === 0) {
     resultBox.textContent = "Place the cue ball and at least one object ball.";
+    return;
+  }
+  if (state.gameMode === "eight_ball" && !state.balls.some((b) => b.number === EIGHT_BALL_NUMBER)) {
+    resultBox.textContent = "Place the 8-ball before solving.";
     return;
   }
 
@@ -301,8 +449,17 @@ document.getElementById("solve").addEventListener("click", async () => {
   });
   const { id } = await createResponse.json();
 
-  const solveResponse = await fetch(`/api/layouts/${id}/solve`, { method: "POST" });
+  const solveResponse = await fetch(`/api/layouts/${id}/solve`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ game_mode: state.gameMode }),
+  });
   const result = await solveResponse.json();
+
+  if (result.error) {
+    resultBox.textContent = `Could not solve: ${result.error}`;
+    return;
+  }
 
   state.solution = result.possible ? result.order : null;
   renderResult(result, id);
@@ -370,23 +527,14 @@ async function loadHistory() {
       note.textContent = "Not solved yet.";
       solutionBox.appendChild(note);
     } else if (layout.solution.possible) {
-      const shotList = document.createElement("ol");
-      shotList.className = "history-shot-list";
-      layout.solution.order.forEach((step) => {
-        const shotItem = document.createElement("li");
-        const diff = shotDifficulty(step.cut_angle);
-        const shotTypeNote = step.shot_type ? `, ${step.shot_type}` : "";
-        shotItem.textContent = `Ball ${step.ball} → ${pocketName(step.pocket)} (${diff.label}${shotTypeNote})`;
-        shotList.appendChild(shotItem);
-      });
-      solutionBox.appendChild(shotList);
+      solutionBox.appendChild(renderHistoryShotList(layout.solution.order));
     } else {
       const note = document.createElement("p");
       note.className = "blocked-note";
       note.textContent =
         layout.solution.failed_at !== null && layout.solution.failed_at !== undefined
-          ? `No run-out possible — blocked at ball ${layout.solution.failed_at}.`
-          : "No run-out possible with any order.";
+          ? `No full run-out — blocked at ball ${layout.solution.failed_at}.`
+          : "No order clears the rest of the balls from here.";
       solutionBox.appendChild(note);
     }
     item.appendChild(solutionBox);
@@ -412,4 +560,6 @@ async function loadHistory() {
   historyBox.appendChild(list);
 }
 
+updateInstructions();
+updateBallPalette();
 draw();

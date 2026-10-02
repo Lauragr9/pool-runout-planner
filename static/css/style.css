@@ -5,6 +5,61 @@ body {
   color: #222;
 }
 
+.mode-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.mode-tab {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid #ccc;
+  border-radius: 999px;
+  background: #f4f4f4;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.mode-tab.active {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #fff;
+  font-weight: 600;
+}
+
+.ball-palette {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.ball-palette-label {
+  font-size: 0.85rem;
+  color: #555;
+  margin-right: 0.3rem;
+}
+
+.palette-number {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  border: 2px solid #999;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.palette-number.armed {
+  box-shadow: 0 0 0 3px #1d4ed8;
+  border-color: #1d4ed8;
+}
+
+.palette-number:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 canvas {
   background: #0b6b3a;
   border: 6px solid #4a2c17;

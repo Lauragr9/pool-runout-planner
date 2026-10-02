@@ -176,10 +176,10 @@ function drawSolution(order) {
     const pos = step.cue_rest_position;
     ctx.beginPath();
     ctx.arc(pos.x * scale, pos.y * scale, 7, 0, Math.PI * 2);
-    ctx.strokeStyle = "#1d4ed8";
+    ctx.strokeStyle = "#fff";
     ctx.lineWidth = 2;
     ctx.stroke();
-    ctx.fillStyle = "#1d4ed8";
+    ctx.fillStyle = "#fff";
     ctx.font = "10px sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -380,7 +380,7 @@ function renderResult(result, layoutId) {
     const heading = document.createElement("p");
     heading.className = "solution-heading";
     const shotWord = result.order.length === 1 ? "shot" : "shots";
-    heading.textContent = `Run-out possible — ${result.order.length} ${shotWord} (numbers match the blue markers on the table)`;
+    heading.textContent = `Run-out possible — ${result.order.length} ${shotWord} (numbers match the white markers on the table)`;
     resultBox.appendChild(heading);
     resultBox.appendChild(renderShotList(result.order));
     resultBox.appendChild(renderAttemptControls(layoutId));

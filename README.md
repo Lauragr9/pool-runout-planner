@@ -11,7 +11,7 @@ Meant as an analysis tool **between games** (like consulting a chess engine afte
 
 The solver does not enumerate every possible sequence: it returns the best one it finds, or the point where it stops being possible. For each shot it also picks a shot type (stun, follow, or draw), based on which one actually leaves a solvable position for the rest of the balls, not just a fixed default. "View history" shows the saved result for each layout, not a recomputed one. A layout that hasn't been solved yet shows as "Not solved yet." See `ADR.md` for the reasoning.
 
-The game mode (the three tabs at the top) changes which order is actually legal, per the WPA rules: **Freeform** has no ordering constraint, **9-Ball** only allows contacting the lowest-numbered remaining ball next, and **8-Ball** only allows the ball numbered 8 once it's the last one left on the table.
+The game mode (the three tabs at the top) changes which order is actually legal, per the WPA rules: **Freeform** has no ordering constraint, **9-Ball** only allows contacting the lowest-numbered remaining ball next, and **8-Ball** only allows the ball numbered 8 once it's the last one left on the table. Each mode keeps its own independent layout; switching tabs never erases or mixes them.
 
 ## Architecture
 

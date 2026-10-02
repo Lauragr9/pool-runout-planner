@@ -9,28 +9,54 @@ const canvas = document.getElementById("table");
 const ctx = canvas.getContext("2d");
 const scale = canvas.width / TABLE_WIDTH;
 
-let state = {
-  gameMode: "freeform",
-  cue: null,
-  balls: [],
-  solution: null,
-  armedBallNumber: null,
-  nextBallNumber: 1,
+// Each game mode keeps its own independent board (cue, balls, last solve
+// result): switching tabs only changes which one is active, it never
+// erases or shares data with the others.
+function freshBoard() {
+  return {
+    cue: null,
+    balls: [],
+    solution: null,
+    armedBallNumber: null,
+    nextBallNumber: 1,
+    lastResult: null,
+    lastLayoutId: null,
+  };
+}
+
+const boardsByMode = {
+  freeform: freshBoard(),
+  nine_ball: freshBoard(),
+  eight_ball: freshBoard(),
 };
+
+let gameMode = "freeform";
+let state = boardsByMode[gameMode];
 
 const EIGHT_BALL_NUMBER = 8;
 const NINE_BALL_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 const EIGHT_BALL_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
 
 function resetBoard() {
-  state.cue = null;
-  state.balls = [];
-  state.solution = null;
-  state.armedBallNumber = null;
-  state.nextBallNumber = 1;
+  const fresh = freshBoard();
+  boardsByMode[gameMode] = fresh;
+  state = fresh;
   document.getElementById("result").innerHTML = "";
   updateBallPalette();
   updateInstructions();
+}
+
+function showBoardForMode(mode) {
+  gameMode = mode;
+  state = boardsByMode[mode];
+  if (state.lastResult) {
+    renderResult(state.lastResult, state.lastLayoutId);
+  } else {
+    document.getElementById("result").innerHTML = "";
+  }
+  updateBallPalette();
+  updateInstructions();
+  draw();
 }
 
 function toLogical(clientX, clientY) {
@@ -90,7 +116,7 @@ function isStripeNumber(number) {
 function shouldDrawAsStripe(number) {
   // solids/stripes is an 8-ball concept; 9-ball reuses ball 9's color but
   // doesn't care about the stripe pattern, so only show it in 8-ball mode
-  return state.gameMode === "eight_ball" && isStripeNumber(number);
+  return gameMode === "eight_ball" && isStripeNumber(number);
 }
 
 function ballColor(number) {
@@ -348,7 +374,7 @@ function renderResult(result, layoutId) {
 
 function updateInstructions() {
   const instructions = document.getElementById("instructions");
-  if (state.gameMode === "nine_ball" || state.gameMode === "eight_ball") {
+  if (gameMode === "nine_ball" || gameMode === "eight_ball") {
     instructions.textContent =
       "Click the cue ball onto the table first, then pick a ball number below and click where it sits.";
   } else {
@@ -357,8 +383,8 @@ function updateInstructions() {
 }
 
 function paletteNumbersForMode() {
-  if (state.gameMode === "nine_ball") return NINE_BALL_NUMBERS;
-  if (state.gameMode === "eight_ball") return EIGHT_BALL_NUMBERS;
+  if (gameMode === "nine_ball") return NINE_BALL_NUMBERS;
+  if (gameMode === "eight_ball") return EIGHT_BALL_NUMBERS;
   return [];
 }
 
@@ -405,9 +431,9 @@ document.querySelectorAll(".mode-tab").forEach((tab) => {
   tab.addEventListener("click", () => {
     document.querySelectorAll(".mode-tab").forEach((t) => t.classList.remove("active"));
     tab.classList.add("active");
-    state.gameMode = tab.dataset.mode;
-    resetBoard();
-    draw();
+    // each mode keeps its own board; switching tabs just shows whichever one
+    // belongs to the newly selected mode, including its last solve result
+    showBoardForMode(tab.dataset.mode);
   });
 });
 
@@ -420,7 +446,7 @@ canvas.addEventListener("click", (event) => {
     return;
   }
 
-  if (state.gameMode === "nine_ball" || state.gameMode === "eight_ball") {
+  if (gameMode === "nine_ball" || gameMode === "eight_ball") {
     if (state.armedBallNumber === null) return;
     state.balls.push({ number: state.armedBallNumber, x: pos.x, y: pos.y });
     state.armedBallNumber = null;
@@ -442,7 +468,7 @@ document.getElementById("solve").addEventListener("click", async () => {
     resultBox.textContent = "Place the cue ball and at least one object ball.";
     return;
   }
-  if (state.gameMode === "eight_ball" && !state.balls.some((b) => b.number === EIGHT_BALL_NUMBER)) {
+  if (gameMode === "eight_ball" && !state.balls.some((b) => b.number === EIGHT_BALL_NUMBER)) {
     resultBox.textContent = "Place the 8-ball before solving.";
     return;
   }
@@ -458,7 +484,7 @@ document.getElementById("solve").addEventListener("click", async () => {
   const solveResponse = await fetch(`/api/layouts/${id}/solve`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ game_mode: state.gameMode }),
+    body: JSON.stringify({ game_mode: gameMode }),
   });
   const result = await solveResponse.json();
 
@@ -468,6 +494,8 @@ document.getElementById("solve").addEventListener("click", async () => {
   }
 
   state.solution = result.possible ? result.order : null;
+  state.lastResult = result;
+  state.lastLayoutId = id;
   renderResult(result, id);
   draw();
 });

@@ -36,11 +36,12 @@ def create_app():
             return jsonify({"error": "not found"}), 404
         data = request.get_json(silent=True) or {}
         game_mode = data.get("game_mode", "freeform")
+        my_group = data.get("my_group")
         try:
-            result = find_runout(layout["cue"], layout["balls"], game_mode=game_mode)
+            result = find_runout(layout["cue"], layout["balls"], game_mode=game_mode, my_group=my_group)
         except ValueError as error:
             return jsonify({"error": str(error)}), 400
-        solver_results.save_solve(layout_id, result, game_mode)
+        solver_results.save_solve(layout_id, result, game_mode, my_group)
         return jsonify(result)
 
     @app.post("/api/layouts/<int:layout_id>/attempts")

@@ -27,6 +27,36 @@ body {
   font-weight: 600;
 }
 
+.group-selector {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.group-selector-label {
+  font-size: 0.85rem;
+  color: #555;
+  margin-right: 0.3rem;
+}
+
+.group-choice {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid #ccc;
+  border-radius: 999px;
+  background: #f4f4f4;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.group-choice.active {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #fff;
+  font-weight: 600;
+}
+
 .ball-palette {
   display: flex;
   align-items: center;

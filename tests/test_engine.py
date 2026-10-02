@@ -177,3 +177,55 @@ def test_nine_ball_mode_allows_more_balls_than_the_freeform_cap():
     result = find_runout(cue, balls, game_mode="nine_ball")
 
     assert result["possible"] in (True, False)  # just needs not to raise
+
+
+def test_my_group_only_plans_the_players_own_balls_plus_the_eight():
+    # two of mine (solids 1, 2), two of the opponent's (stripes 9, 10), none
+    # of them blocking each other; without my_group the planner clears all
+    # five, with my_group="solids" it should stop at just mine plus the 8
+    cue = {"x": 50, "y": 25}
+    mine_a = {"number": 1, "x": 20, "y": 10}   # collinear cue -> pocket (0, 0)
+    mine_b = {"number": 2, "x": 80, "y": 40}   # collinear cue -> pocket (100, 50)
+    eight = {"number": 8, "x": 50, "y": 45}
+    opponent_a = {"number": 9, "x": 95, "y": 5}
+    opponent_b = {"number": 10, "x": 5, "y": 45}
+    balls = [mine_a, mine_b, eight, opponent_a, opponent_b]
+
+    whole_table = find_runout(cue, balls, game_mode="eight_ball")
+    mine_only = find_runout(cue, balls, game_mode="eight_ball", my_group="solids")
+
+    assert sorted(step["ball"] for step in whole_table["order"]) == [1, 2, 8, 9, 10]
+    assert [step["ball"] for step in mine_only["order"]] == [1, 2, 8]
+    assert mine_only["possible"] is True
+
+
+def test_my_group_opponent_balls_still_block_shots():
+    # same blocking geometry as the freeform/nine_ball blocking test, but the
+    # ball sitting on the cue's path to ball 1 is now the opponent's (a
+    # stripe), not mine; it must still block the shot even though it's
+    # excluded from what the sequence tries to pot
+    cue = {"x": 10, "y": 5}
+    mine = {"number": 1, "x": 40, "y": 20}
+    opponent_blocker = {"number": 9, "x": 23.66, "y": 11.83}
+    eight = {"number": 8, "x": 90, "y": 45}
+
+    result = find_runout(cue, [mine, opponent_blocker, eight], game_mode="eight_ball", my_group="solids")
+
+    assert result["possible"] is False
+    assert result["failed_at"] == 1
+
+
+def test_my_group_is_rejected_outside_eight_ball_mode():
+    cue = {"x": 50, "y": 25}
+    ball = {"number": 1, "x": 20, "y": 10}
+    _expect_value_error(find_runout, cue, [ball], game_mode="freeform", my_group="solids")
+    _expect_value_error(find_runout, cue, [ball], game_mode="nine_ball", my_group="solids")
+
+
+def test_my_group_must_be_solids_or_stripes():
+    cue = {"x": 50, "y": 25}
+    ball_other = {"number": 1, "x": 20, "y": 10}
+    ball_eight = {"number": 8, "x": 60, "y": 30}
+    _expect_value_error(
+        find_runout, cue, [ball_other, ball_eight], game_mode="eight_ball", my_group="green"
+    )

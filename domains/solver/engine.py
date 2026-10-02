@@ -8,6 +8,9 @@ MAX_BALLS_NINE_BALL = 9  # nine_ball only ever considers one ball per level (the
 SHOT_TYPE_PREFERENCE = ("follow", "stun", "draw")  # tried in this order per shot
 GAME_MODES = ("freeform", "nine_ball", "eight_ball")
 EIGHT_BALL_NUMBER = 8
+BALL_GROUPS = ("solids", "stripes")
+SOLIDS_NUMBERS = set(range(1, 8))  # 1-7
+STRIPES_NUMBERS = set(range(9, 16))  # 9-15
 
 TABLE_WIDTH = 100
 TABLE_HEIGHT = 50
@@ -68,7 +71,7 @@ def _legal_candidates(remaining, game_mode):
     return remaining
 
 
-def _search(cue_pos, remaining, game_mode):
+def _search(cue_pos, remaining, obstacles, game_mode):
     """Depth-first search over shot orderings, trying easier shots first and
     backtracking whenever a choice leaves no valid continuation. For each
     ball it also tries each shot_type in SHOT_TYPE_PREFERENCE, since the
@@ -76,13 +79,19 @@ def _search(cue_pos, remaining, game_mode):
     of the balls, not just on the shot being taken. `game_mode` restricts
     which ball is even allowed to be attempted next (nine-ball: must be the
     lowest remaining number; eight-ball: the 8 only once it's the last ball
-    left); it doesn't change which balls can block a path."""
+    left); it doesn't change which balls can block a path.
+
+    `obstacles` are balls that stay on the table for the whole search (the
+    opponent's group in an eight-ball layout with `my_group` set) and are
+    never shot at, but can still block any other ball's path.
+
+    Returns None if there is no order that clears every ball in `remaining`."""
     if not remaining:
         return []
 
     scored = []
     for ball in _legal_candidates(remaining, game_mode):
-        others = [b for b in remaining if b["number"] != ball["number"]]
+        others = [b for b in remaining if b["number"] != ball["number"]] + obstacles
         shot = _best_pocket_shot(cue_pos, ball, others)
         if shot is not None:
             scored.append((shot["cut_angle"], ball, shot))
@@ -94,7 +103,7 @@ def _search(cue_pos, remaining, game_mode):
             rest = _clamp_to_table(
                 geometry.cue_rest_position(cue_pos, ball, shot["pocket"], shot_type=shot_type)
             )
-            continuation = _search(rest, rest_of_balls, game_mode)
+            continuation = _search(rest, rest_of_balls, obstacles, game_mode)
             if continuation is not None:
                 step = {
                     "ball": ball["number"],
@@ -108,24 +117,26 @@ def _search(cue_pos, remaining, game_mode):
     return None
 
 
-def _first_unmakeable_ball(cue_pos, balls, game_mode):
+def _first_unmakeable_ball(cue_pos, balls, obstacles, game_mode):
     """Best-effort explanation for an impossible layout: the first legal-to-
     attempt ball that has no shot at all from the starting position. Does
     not catch deeper sequencing conflicts where every ball is individually
     makeable but no order works."""
     for ball in _legal_candidates(balls, game_mode):
-        others = [b for b in balls if b["number"] != ball["number"]]
+        others = [b for b in balls if b["number"] != ball["number"]] + obstacles
         if _best_pocket_shot(cue_pos, ball, others) is None:
             return ball["number"]
     return None
 
 
-def find_runout(cue_pos, balls, game_mode="freeform"):
+def find_runout(cue_pos, balls, game_mode="freeform", my_group=None):
     if game_mode not in GAME_MODES:
         raise ValueError(f"game_mode must be one of {GAME_MODES}")
-    ball_cap = MAX_BALLS_NINE_BALL if game_mode == "nine_ball" else MAX_BALLS
-    if len(balls) > ball_cap:
-        raise ValueError(f"layout has more than {ball_cap} balls; solver is not designed for that")
+    if my_group is not None:
+        if game_mode != "eight_ball":
+            raise ValueError("my_group is only supported in eight_ball mode")
+        if my_group not in BALL_GROUPS:
+            raise ValueError(f"my_group must be one of {BALL_GROUPS}")
     if game_mode == "eight_ball":
         eight_balls = [b for b in balls if b["number"] == EIGHT_BALL_NUMBER]
         if len(eight_balls) != 1:
@@ -135,7 +146,27 @@ def find_runout(cue_pos, balls, game_mode="freeform"):
         if len(set(numbers)) != len(numbers):
             raise ValueError("nine_ball mode requires every ball to have a distinct number")
 
-    order = _search(cue_pos, balls, game_mode)
+    # with `my_group` set, the opponent's balls stay on the table as fixed
+    # obstacles: they can block a shot, but the sequence never tries to pot
+    # them, since this planner only plans your own run-out
+    if my_group is not None:
+        group_numbers = SOLIDS_NUMBERS if my_group == "solids" else STRIPES_NUMBERS
+        target_balls = [
+            b for b in balls if b["number"] in group_numbers or b["number"] == EIGHT_BALL_NUMBER
+        ]
+        obstacles = [
+            b for b in balls if b["number"] not in group_numbers and b["number"] != EIGHT_BALL_NUMBER
+        ]
+    else:
+        target_balls = balls
+        obstacles = []
+
+    ball_cap = MAX_BALLS_NINE_BALL if game_mode == "nine_ball" else MAX_BALLS
+    if len(target_balls) > ball_cap:
+        raise ValueError(f"layout has more than {ball_cap} balls to pot; solver is not designed for that")
+
+    order = _search(cue_pos, target_balls, obstacles, game_mode)
     if order is None:
-        return {"possible": False, "order": None, "failed_at": _first_unmakeable_ball(cue_pos, balls, game_mode)}
+        failed_at = _first_unmakeable_ball(cue_pos, target_balls, obstacles, game_mode)
+        return {"possible": False, "order": None, "failed_at": failed_at}
     return {"possible": True, "order": order, "failed_at": None}

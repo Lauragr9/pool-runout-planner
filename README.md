@@ -13,6 +13,8 @@ The solver does not enumerate every possible sequence: it returns the best one i
 
 The game mode (the three tabs at the top) changes which order is actually legal, per the WPA rules: **Freeform** has no ordering constraint, **9-Ball** only allows contacting the lowest-numbered remaining ball next, and **8-Ball** only allows the ball numbered 8 once it's the last one left on the table. Each mode keeps its own independent layout; switching tabs never erases or mixes them.
 
+In **8-Ball**, since one player always has solids (1-7) and the other stripes (9-15), you can optionally say which group is yours. Once chosen, the solver only plans a sequence for your own balls plus the 8 at the end; the opponent's balls stay on the table as fixed obstacles (they can still block a shot) but are never part of the sequence. Leaving it unset keeps the old behavior of planning a full table clear.
+
 ## Architecture
 
 The whole app is a single Flask process (`app.py`), meaning no background workers, queues, or separate services, matching the single-process/single-container deployment contract.
@@ -45,7 +47,7 @@ python app.py
 
 By default it listens on port `5000` and stores the SQLite database at `data/runout.db` — see Configuration above to change either.
 
-Open `http://localhost:<PORT>/` in the browser, pick a game mode (Freeform, 9-Ball, or 8-Ball), click on the table to place the cue ball, then click "Save & Solve". In 9-Ball and 8-Ball, pick a ball number from the row above the table before clicking where it sits (9-Ball offers 1-9; 8-Ball offers the full 15-ball set, 1-7 solids, 8, and 9-15 stripes, drawn with a white stripe through the colored band). After a successful solve you can log whether you actually ran out with it; "View history" lists recent layouts and their logged attempts.
+Open `http://localhost:<PORT>/` in the browser, pick a game mode (Freeform, 9-Ball, or 8-Ball), click on the table to place the cue ball, then click "Save & Solve". In 9-Ball and 8-Ball, pick a ball number from the row above the table before clicking where it sits (9-Ball offers 1-9; 8-Ball offers the full 15-ball set, 1-7 solids, 8, and 9-15 stripes, drawn with a white stripe through the colored band). In 8-Ball you can also pick which group is yours (Solids or Stripes); the opponent's balls then show up dimmed on the table, since they're only there to block shots, not to be potted. After a successful solve you can log whether you actually ran out with it; "View history" lists recent layouts and their logged attempts.
 
 ## Tests & coverage
 
@@ -56,8 +58,8 @@ pip install -r requirements.txt
 python -m pytest --cov=domains --cov-report=term-missing
 ```
 
-Current result: **39 tests, 98% coverage across `domains/layouts` and `domains/solver`**.
+Current result: **43 tests, 99% coverage across `domains/layouts` and `domains/solver`**.
 
 ## AI disclosure statement
 
-See `AI_USAGE.md` for the detailed log. Summary: I acknowledge the use of Claude (Anthropic) throughout this project, from the initial scaffold (the two domains, the Flask app, the solver engine, and its test suite) through later iterations: the SQLite schema and the solver's own results table, the result-display redesign, the cue ball's rest-position physics (translation via friction, rotation via preserved spin for follow/draw, and the solver choosing a shot type per ball), the three game modes and their WPA shot-order rules, and the tests covering all of it. The prompts used include the use case definition, explicit scope decisions (e.g. the solver returning one recommended sequence instead of enumerating every play), direct feedback after testing features live in the browser (e.g. the rest position landing outside the table, or looking too lateral to be realistic), and requests to verify claims empirically (e.g. measuring solvability rates and search performance) rather than taking them on faith. Every accepted output was reviewed and verified before being kept, including running the test suite, exercising the app in the browser, and checking specific computed values by hand or with throwaway scripts.
+See `AI_USAGE.md` for the detailed log. Summary: I acknowledge the use of Claude (Anthropic) throughout this project, from the initial scaffold (the two domains, the Flask app, the solver engine, and its test suite) through later iterations: the SQLite schema and the solver's own results table, the result-display redesign, the cue ball's rest-position physics (translation via friction, rotation via preserved spin for follow/draw, and the solver choosing a shot type per ball), the three game modes and their WPA shot-order rules with independent per-mode layouts, and letting the player mark which 8-ball group is theirs so the solver only plans their own run-out, plus the tests covering all of it. The prompts used include the use case definition, explicit scope decisions made both ways (e.g. the solver returning one recommended sequence instead of enumerating every play, and later adding then deliberately dropping a "best partial sequence" fallback for impossible layouts to keep the solver focused on plain run-out detection before the deadline), direct feedback after testing features live in the browser (e.g. the rest position landing outside the table, two game modes sharing one board instead of being independent, or a palette number looking off-center), and requests to verify claims empirically (e.g. measuring solvability rates and search performance) rather than taking them on faith. Every accepted output was reviewed and verified before being kept, including running the test suite, exercising the app in the browser, and checking specific computed values by hand or with throwaway scripts.

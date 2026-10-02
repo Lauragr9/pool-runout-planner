@@ -21,6 +21,10 @@ function freshBoard() {
     nextBallNumber: 1,
     lastResult: null,
     lastLayoutId: null,
+    // only meaningful in eight_ball mode: which group ("solids"/"stripes")
+    // is the player's own. Left null until chosen, which keeps the old
+    // whole-table behavior (plan a run-out for every ball on the table)
+    myGroup: null,
   };
 }
 
@@ -37,6 +41,17 @@ const EIGHT_BALL_NUMBER = 8;
 const NINE_BALL_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 const EIGHT_BALL_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
 
+function groupOf(number) {
+  if (number === EIGHT_BALL_NUMBER) return null;
+  return isStripeNumber(number) ? "stripes" : "solids";
+}
+
+// a ball is the opponent's only once a group has actually been chosen; the
+// 8-ball itself is never anyone's until the rest of your group is cleared
+function isOpponentBall(number) {
+  return gameMode === "eight_ball" && state.myGroup !== null && groupOf(number) !== null && groupOf(number) !== state.myGroup;
+}
+
 const GAME_MODE_LABELS = {
   freeform: "Freeform",
   nine_ball: "9-Ball",
@@ -50,6 +65,7 @@ function resetBoard() {
   document.getElementById("result").innerHTML = "";
   updateBallPalette();
   updateInstructions();
+  updateGroupSelector();
 }
 
 function showBoardForMode(mode) {
@@ -62,6 +78,7 @@ function showBoardForMode(mode) {
   }
   updateBallPalette();
   updateInstructions();
+  updateGroupSelector();
   draw();
 }
 
@@ -185,6 +202,10 @@ function drawBall(pos, number) {
   const x = pos.x * scale;
   const y = pos.y * scale;
   const r = 12;
+  const dimmed = isOpponentBall(number);
+
+  ctx.save();
+  if (dimmed) ctx.globalAlpha = 0.4;
 
   ctx.save();
   ctx.beginPath();
@@ -212,6 +233,7 @@ function drawBall(pos, number) {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(String(number), x, y);
+  ctx.restore();
 }
 
 const POCKET_NAMES = {
@@ -380,13 +402,39 @@ function renderResult(result, layoutId) {
 
 function updateInstructions() {
   const instructions = document.getElementById("instructions");
-  if (gameMode === "nine_ball" || gameMode === "eight_ball") {
+  if (gameMode === "eight_ball") {
+    instructions.textContent =
+      "Click the cue ball onto the table first, then pick a ball number below and click where it sits. " +
+      "Pick which group is yours below to get a sequence for just your own balls (optional, the 8-ball is always last).";
+  } else if (gameMode === "nine_ball") {
     instructions.textContent =
       "Click the cue ball onto the table first, then pick a ball number below and click where it sits.";
   } else {
     instructions.textContent = "Click to place the cue ball (first click), then the object balls, in any order.";
   }
 }
+
+function updateGroupSelector() {
+  const selector = document.getElementById("group-selector");
+  if (gameMode !== "eight_ball") {
+    selector.hidden = true;
+    return;
+  }
+  selector.hidden = false;
+  selector.querySelectorAll(".group-choice").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.group === state.myGroup);
+  });
+}
+
+document.querySelectorAll(".group-choice").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    // exclusive choice, same as the mode tabs: it's always solids or
+    // stripes once you've picked one, never back to neither
+    state.myGroup = btn.dataset.group;
+    updateGroupSelector();
+    draw();
+  });
+});
 
 function paletteNumbersForMode() {
   if (gameMode === "nine_ball") return NINE_BALL_NUMBERS;
@@ -487,10 +535,14 @@ document.getElementById("solve").addEventListener("click", async () => {
   });
   const { id } = await createResponse.json();
 
+  const solveBody = { game_mode: gameMode };
+  if (gameMode === "eight_ball" && state.myGroup) {
+    solveBody.my_group = state.myGroup;
+  }
   const solveResponse = await fetch(`/api/layouts/${id}/solve`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ game_mode: gameMode }),
+    body: JSON.stringify(solveBody),
   });
   const result = await solveResponse.json();
 
@@ -548,8 +600,11 @@ async function loadHistory() {
     summary.className = "history-summary";
     const ballWord = layout.balls.length === 1 ? "ball" : "balls";
     const modeLabel = layout.solution ? GAME_MODE_LABELS[layout.solution.game_mode] : null;
+    const groupLabel = layout.solution && layout.solution.my_group
+      ? `, yours: ${layout.solution.my_group}`
+      : "";
     summary.textContent = modeLabel
-      ? `Layout #${layout.id}: ${layout.balls.length} ${ballWord} (${modeLabel})`
+      ? `Layout #${layout.id}: ${layout.balls.length} ${ballWord} (${modeLabel}${groupLabel})`
       : `Layout #${layout.id}: ${layout.balls.length} ${ballWord}`;
     item.appendChild(summary);
 
@@ -605,4 +660,5 @@ async function loadHistory() {
 
 updateInstructions();
 updateBallPalette();
+updateGroupSelector();
 draw();

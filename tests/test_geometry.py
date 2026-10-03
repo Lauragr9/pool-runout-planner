@@ -172,6 +172,58 @@ def test_draw_rotates_the_exit_direction_away_from_incoming():
     assert traveled == pytest.approx(_expected_slide_distance())
 
 
+def test_cue_rest_position_stops_short_of_a_blocker_in_its_path():
+    # same straight-in shot as test_follow_rolls_straight_through_a_straight_in_shot,
+    # but with another ball sitting directly on the cue ball's follow-through
+    # path: the real cue ball would collide with it, not glide straight past
+    cue_pos = {"x": 0, "y": 25}
+    object_ball = {"x": 50, "y": 25}
+    pocket = {"x": 100, "y": 25}
+    blocker = {"x": 55, "y": 25}
+
+    unobstructed = geometry.cue_rest_position(cue_pos, object_ball, pocket, shot_type="follow")
+    rest = geometry.cue_rest_position(
+        cue_pos, object_ball, pocket, shot_type="follow", blockers=[blocker]
+    )
+
+    assert rest["x"] < unobstructed["x"]
+    # exactly two ball radii short of the blocker's center, since that's
+    # where the two balls' surfaces would actually touch
+    distance_to_blocker = math.hypot(blocker["x"] - rest["x"], blocker["y"] - rest["y"])
+    assert distance_to_blocker == pytest.approx(geometry.DEFAULT_BALL_RADIUS * 2)
+
+
+def test_cue_rest_position_cant_move_at_all_if_already_touching_a_blocker():
+    # edge case: a blocker sits essentially right at the contact point itself,
+    # so the cue ball can't slide anywhere at all, not even a little
+    cue_pos = {"x": 0, "y": 25}
+    object_ball = {"x": 50, "y": 25}
+    pocket = {"x": 100, "y": 25}
+    ghost = geometry.ghost_ball_position(object_ball, pocket)
+    blocker_at_ghost = dict(ghost)
+
+    rest = geometry.cue_rest_position(
+        cue_pos, object_ball, pocket, shot_type="follow", blockers=[blocker_at_ghost]
+    )
+
+    assert rest["x"] == pytest.approx(ghost["x"])
+    assert rest["y"] == pytest.approx(ghost["y"])
+
+
+def test_cue_rest_position_ignores_a_blocker_off_to_the_side():
+    cue_pos = {"x": 0, "y": 25}
+    object_ball = {"x": 50, "y": 25}
+    pocket = {"x": 100, "y": 25}
+    far_blocker = {"x": 55, "y": 45}  # nowhere near the straight path along y=25
+
+    unobstructed = geometry.cue_rest_position(cue_pos, object_ball, pocket, shot_type="follow")
+    rest = geometry.cue_rest_position(
+        cue_pos, object_ball, pocket, shot_type="follow", blockers=[far_blocker]
+    )
+
+    assert rest == unobstructed
+
+
 def test_cue_rest_position_rejects_an_unknown_shot_type():
     cue_pos = {"x": 50, "y": 0}
     object_ball = {"x": 50, "y": 25}

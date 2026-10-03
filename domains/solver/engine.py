@@ -99,9 +99,12 @@ def _search(cue_pos, remaining, obstacles, game_mode):
 
     for _, ball, shot in scored:
         rest_of_balls = [b for b in remaining if b["number"] != ball["number"]]
+        blockers = rest_of_balls + obstacles
         for shot_type in SHOT_TYPE_PREFERENCE:
             rest = _clamp_to_table(
-                geometry.cue_rest_position(cue_pos, ball, shot["pocket"], shot_type=shot_type)
+                geometry.cue_rest_position(
+                    cue_pos, ball, shot["pocket"], shot_type=shot_type, blockers=blockers
+                )
             )
             continuation = _search(rest, rest_of_balls, obstacles, game_mode)
             if continuation is not None:

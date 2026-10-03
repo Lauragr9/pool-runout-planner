@@ -58,8 +58,27 @@ def cut_angle_degrees(cue_pos, object_ball, pocket):
     return math.degrees(math.acos(dot))
 
 
+def _ray_circle_hit_distance(origin, direction, center, radius):
+    """How far along the ray from `origin` in unit `direction` the point
+    first comes within `radius` of `center`, or None if it never does.
+    If `origin` already starts inside that radius, returns 0 (the ball
+    can't move any closer than it already started)."""
+    ox, oy = origin["x"] - center["x"], origin["y"] - center["y"]
+    dx, dy = direction
+    b = 2 * (ox * dx + oy * dy)
+    c = ox * ox + oy * oy - radius * radius
+    if c < 0:
+        return 0.0
+    discriminant = b * b - 4 * c
+    if discriminant < 0:
+        return None
+    nearest = (-b - math.sqrt(discriminant)) / 2
+    return nearest if nearest >= 0 else None
+
+
 def cue_rest_position(cue_pos, object_ball, pocket, shot_type="stun",
-                       ball_radius=DEFAULT_BALL_RADIUS, speed=DEFAULT_SHOT_SPEED):
+                       ball_radius=DEFAULT_BALL_RADIUS, speed=DEFAULT_SHOT_SPEED,
+                       blockers=None):
     """Where the cue ball ends up after the shot: an approximation that
     involves both translation and rotation, not just the instant-of-contact
     geometry.
@@ -88,6 +107,11 @@ def cue_rest_position(cue_pos, object_ball, pocket, shot_type="stun",
     at all, so "stun" genuinely stops dead at the contact point, while
     "follow"/"draw" still roll straight through forward or backward along
     the original line.
+
+    If `blockers` is given (every other ball still on the table, including
+    ones the solver has no intention of potting), the slide stops early at
+    the first one it would actually run into, instead of reporting a rest
+    position that would have the cue ball pass straight through it.
     """
     ghost = ghost_ball_position(object_ball, pocket, ball_radius)
 
@@ -114,6 +138,11 @@ def cue_rest_position(cue_pos, object_ball, pocket, shot_type="stun",
 
     exit_direction = _normalize(blended)
     slide_distance = speed ** 2 / (2 * SLIDE_FRICTION)
+
+    for blocker in blockers or []:
+        hit = _ray_circle_hit_distance(ghost, exit_direction, blocker, ball_radius * 2)
+        if hit is not None and hit < slide_distance:
+            slide_distance = hit
 
     return {
         "x": ghost["x"] + exit_direction[0] * slide_distance,

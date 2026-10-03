@@ -100,7 +100,7 @@ def test_search_backtracks_when_the_easiest_ball_leads_to_a_dead_end():
     result = find_runout(cue, [ball1, ball2, ball3])
 
     assert result["possible"] is True
-    assert [step["ball"] for step in result["order"]] == [2, 3, 1]
+    assert [step["ball"] for step in result["order"]] == [2, 1, 3]
 
 
 def test_search_tries_other_shot_types_before_giving_up_on_a_ball():

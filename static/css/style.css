@@ -5,6 +5,16 @@ body {
   color: #222;
 }
 
+/* The browser's own [hidden] rule only sets display: none, which any of our
+   own "display: flex" rules below silently outranks (author styles beat the
+   user-agent stylesheet regardless of selector specificity). Without this,
+   toggling an element's `hidden` property in JS stops actually hiding it the
+   moment it also has a custom display value, as .ball-palette and
+   .group-selector both do. */
+[hidden] {
+  display: none !important;
+}
+
 .mode-tabs {
   display: flex;
   gap: 0.5rem;

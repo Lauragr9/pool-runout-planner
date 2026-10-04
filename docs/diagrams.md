@@ -33,7 +33,7 @@ flowchart TB
 
 ## Database schema
 
-Matches [ADR-3](../ADR.md) and the actual schema in [`db.py`](../db.py): `layout_balls`, `attempts` and `solves` are all one-to-many child tables off `layouts`, not a JSON blob.
+Matches [ADR-3](../ADR.md) (the `layouts`/`layout_balls`/`attempts` shape), [ADR-2](../ADR.md) (why `solves` exists as its own table), and the actual schema in [`db.py`](../db.py): all three child tables are one-to-many off `layouts`, not a JSON blob.
 
 ```mermaid
 erDiagram

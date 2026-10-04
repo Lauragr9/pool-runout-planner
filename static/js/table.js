@@ -68,6 +68,16 @@ function resetBoard() {
   updateGroupSelector();
 }
 
+function clearStaleSolution() {
+  // the board changed, so any previously computed solve no longer matches
+  // the balls actually on the table; drop it instead of leaving stale
+  // markers on the canvas and a result panel pointing at the old layoutId
+  state.solution = null;
+  state.lastResult = null;
+  state.lastLayoutId = null;
+  document.getElementById("result").innerHTML = "";
+}
+
 function showBoardForMode(mode) {
   gameMode = mode;
   state = boardsByMode[mode];
@@ -250,9 +260,11 @@ function pocketName(pocket) {
 }
 
 function shotDifficulty(cutAngle) {
+  // thresholds span 0-50 since the backend's MAX_CUT_ANGLE (engine.py)
+  // never returns a shot above 50°; revisit these if that constant changes
   if (cutAngle < 15) return { label: "straight shot", cls: "difficulty-easy" };
-  if (cutAngle < 40) return { label: "slight angle", cls: "difficulty-easy" };
-  if (cutAngle < 65) return { label: "medium cut", cls: "difficulty-medium" };
+  if (cutAngle < 28) return { label: "slight angle", cls: "difficulty-easy" };
+  if (cutAngle < 40) return { label: "medium cut", cls: "difficulty-medium" };
   return { label: "thin cut", cls: "difficulty-hard" };
 }
 
@@ -508,6 +520,7 @@ canvas.addEventListener("click", (event) => {
   } else {
     state.balls.push({ number: state.nextBallNumber++, x: pos.x, y: pos.y });
   }
+  clearStaleSolution();
   draw();
 });
 

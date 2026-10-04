@@ -99,3 +99,13 @@ def test_list_recent_layouts_newest_first(tmp_path, monkeypatch):
     layouts = repo.list_recent_layouts()
 
     assert [layout["id"] for layout in layouts] == [second_id, first_id]
+
+
+def test_list_recent_layouts_caps_at_the_default_limit(tmp_path, monkeypatch):
+    _use_temp_db(tmp_path, monkeypatch)
+    layout_ids = [repo.create_layout({"x": 0, "y": 0}, []) for _ in range(21)]
+
+    layouts = repo.list_recent_layouts()
+
+    assert len(layouts) == 20
+    assert [layout["id"] for layout in layouts] == list(reversed(layout_ids[1:]))

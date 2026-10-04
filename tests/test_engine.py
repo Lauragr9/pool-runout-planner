@@ -58,6 +58,26 @@ def test_ball_with_no_viable_angle_to_any_pocket_is_impossible():
     assert result["failed_at"] == 7
 
 
+def test_every_ball_individually_makeable_but_no_order_clears_them():
+    # both balls have an individual shot on their own (~47.3° and ~48.9°),
+    # but whichever one is shot first, the resulting cue rest position
+    # leaves no valid shot for the other, for any of the three shot types
+    # (verified directly: _search from each of those rest positions returns
+    # None in both directions). This is the "deeper sequencing conflict"
+    # _first_unmakeable_ball's docstring says it can't explain: since every
+    # ball individually has a shot, failed_at comes back None instead of a
+    # specific ball number.
+    cue = {"x": 50, "y": 25}
+    ball1 = {"number": 1, "x": 63.4, "y": 7.3}
+    ball2 = {"number": 2, "x": 64.2, "y": 43.9}
+
+    result = find_runout(cue, [ball1, ball2])
+
+    assert result["possible"] is False
+    assert result["order"] is None
+    assert result["failed_at"] is None
+
+
 def test_more_than_max_balls_is_rejected():
     cue = {"x": 50, "y": 25}
     balls = [{"number": i, "x": i * 5, "y": 10} for i in range(1, 10)]
@@ -70,8 +90,9 @@ def test_more_than_max_balls_is_rejected():
 
 
 def test_cue_rest_position_never_ends_up_off_the_table():
-    # regression: for a ball near the top rail, the stun-shot tangent line can
-    # point past y=0; the cue ball must not be reported as resting off-table
+    # regression: for a ball near the top rail, the chosen shot type's exit
+    # line can point past y=0; the cue ball must not be reported as resting
+    # off-table regardless of which shot type (follow/stun/draw) is used
     cue = {"x": 30, "y": 20}
     ball = {"number": 1, "x": 60, "y": 3}
 

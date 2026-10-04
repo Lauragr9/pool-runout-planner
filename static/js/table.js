@@ -443,6 +443,7 @@ document.querySelectorAll(".group-choice").forEach((btn) => {
     // exclusive choice, same as the mode tabs: it's always solids or
     // stripes once you've picked one, never back to neither
     state.myGroup = btn.dataset.group;
+    clearStaleSolution();
     updateGroupSelector();
     draw();
   });

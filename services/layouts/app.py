@@ -1,0 +1,83 @@
+import logging
+import os
+import time
+from datetime import datetime, timezone
+
+from flask import Flask, g, jsonify, request
+
+import repository
+from db import get_db, init_db
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("layouts")
+
+GIT_SHA = os.environ.get("GIT_SHA", "dev")
+
+
+def create_app():
+    app = Flask(__name__)
+    init_db()
+
+    @app.before_request
+    def _start_timer():
+        g.start_time = time.monotonic()
+
+    @app.after_request
+    def _log_request(response):
+        duration_ms = (time.monotonic() - g.start_time) * 1000
+        logger.info(
+            "%s %s %s %.1fms", request.method, request.path, response.status_code, duration_ms
+        )
+        return response
+
+    @app.get("/health")
+    def health():
+        try:
+            conn = get_db()
+            conn.execute("CREATE TABLE IF NOT EXISTS _health (id INTEGER PRIMARY KEY, pinged_at TEXT)")
+            conn.execute("DELETE FROM _health")
+            conn.execute(
+                "INSERT INTO _health (pinged_at) VALUES (?)",
+                (datetime.now(timezone.utc).isoformat(),),
+            )
+            conn.commit()
+            row = conn.execute("SELECT pinged_at FROM _health").fetchone()
+            conn.close()
+            if row is None:
+                raise RuntimeError("health round-trip returned no row")
+            return jsonify({"status": "ok", "db": "ok", "version": GIT_SHA}), 200
+        except Exception:
+            logger.exception("health check failed")
+            return jsonify({"status": "error", "db": "error", "version": GIT_SHA}), 503
+
+    @app.post("/layouts")
+    def create_layout():
+        data = request.get_json()
+        layout_id = repository.create_layout(data["cue"], data["balls"])
+        return jsonify({"id": layout_id}), 201
+
+    @app.get("/layouts/<int:layout_id>")
+    def get_layout(layout_id):
+        layout = repository.get_layout(layout_id)
+        if layout is None:
+            return jsonify({"error": "not found"}), 404
+        return jsonify(layout)
+
+    @app.get("/layouts")
+    def list_recent_layouts():
+        return jsonify(repository.list_recent_layouts())
+
+    @app.post("/layouts/<int:layout_id>/attempts")
+    def log_attempt(layout_id):
+        data = request.get_json()
+        repository.log_attempt(layout_id, data.get("succeeded"), data.get("notes", ""))
+        return jsonify({"ok": True}), 201
+
+    return app
+
+
+app = create_app()
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8000))
+    app.run(host="0.0.0.0", port=port)

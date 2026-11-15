@@ -4,6 +4,7 @@ import time
 from datetime import datetime, timezone
 
 from flask import Flask, g, jsonify, request
+from flask_cors import CORS
 
 import results_repository
 from client import LayoutsUnavailable, get_layout
@@ -14,10 +15,12 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("solver")
 
 GIT_SHA = os.environ.get("GIT_SHA", "dev")
+UI_ORIGIN = os.environ.get("UI_ORIGIN", "http://localhost:8080")
 
 
 def create_app():
     app = Flask(__name__)
+    CORS(app, origins=[UI_ORIGIN])
     init_db()
 
     @app.before_request

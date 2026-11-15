@@ -1,0 +1,32 @@
+services:
+  layouts:
+    build: ./services/layouts
+    ports:
+      - "8100:8000"
+    volumes:
+      - layouts-data:/app/data
+
+  solver:
+    build: ./services/solver
+    ports:
+      - "8101:8001"
+    environment:
+      LAYOUTS_URL: http://layouts:8000
+    depends_on:
+      - layouts
+    volumes:
+      - solver-data:/app/data
+
+  ui:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./ui:/usr/share/nginx/html:ro
+    depends_on:
+      - layouts
+      - solver
+
+volumes:
+  layouts-data:
+  solver-data:

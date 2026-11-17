@@ -7,14 +7,14 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app.py db.py engine.py geometry.py results_repository.py client.py ./
+COPY app.py db.py engine.py geometry.py results_repository.py client.py migrate.py ./
+COPY migrations ./migrations
 
-RUN mkdir -p /app/data && chown -R app:app /app
+RUN chown -R app:app /app
 
 USER app
 
 ENV PORT=8001
-ENV DATA_DIR=/app/data
 EXPOSE 8001
 
 CMD ["python", "app.py"]

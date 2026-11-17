@@ -1,21 +1,61 @@
 services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${SA_PASSWORD:?set SA_PASSWORD, e.g. in a .env file}
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  db-init:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    volumes:
+      - ./db:/scripts:ro
+    environment:
+      SA_PASSWORD: ${SA_PASSWORD:?set SA_PASSWORD, e.g. in a .env file}
+      LAYOUTS_DB_PASSWORD: ${LAYOUTS_DB_PASSWORD:?set LAYOUTS_DB_PASSWORD, e.g. in a .env file}
+      SOLVER_DB_PASSWORD: ${SOLVER_DB_PASSWORD:?set SOLVER_DB_PASSWORD, e.g. in a .env file}
+    entrypoint:
+      - /bin/bash
+      - -c
+      - >
+        /opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P "$$SA_PASSWORD" -C
+        -v LayoutsPassword="$$LAYOUTS_DB_PASSWORD" SolverPassword="$$SOLVER_DB_PASSWORD"
+        -i /scripts/init.sql
+
   layouts:
     build: ./services/layouts
     ports:
       - "8100:8000"
-    volumes:
-      - layouts-data:/app/data
+    environment:
+      DATABASE_URL: mssql://layouts_user:${LAYOUTS_DB_PASSWORD:?set LAYOUTS_DB_PASSWORD, e.g. in a .env file}@sqlserver:1433/layouts
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
 
   solver:
     build: ./services/solver
     ports:
       - "8101:8001"
     environment:
+      DATABASE_URL: mssql://solver_user:${SOLVER_DB_PASSWORD:?set SOLVER_DB_PASSWORD, e.g. in a .env file}@sqlserver:1433/solver
       LAYOUTS_URL: http://layouts:8000
     depends_on:
-      - layouts
-    volumes:
-      - solver-data:/app/data
+      db-init:
+        condition: service_completed_successfully
+      layouts:
+        condition: service_started
 
   ui:
     image: nginx:alpine
@@ -28,5 +68,4 @@ services:
       - solver
 
 volumes:
-  layouts-data:
-  solver-data:
+  sqlserver-data:

@@ -6,12 +6,13 @@ from db import get_db
 
 def save_solve(layout_id, result, game_mode="freeform", my_group=None):
     conn = get_db()
+    cur = conn.cursor()
     now = datetime.now(timezone.utc).isoformat()
     order_json = json.dumps(result["order"]) if result["possible"] else None
-    conn.execute(
+    cur.execute(
         "INSERT INTO solves (layout_id, computed_at, possible, failed_at, order_json, game_mode, my_group) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (layout_id, now, int(result["possible"]), result["failed_at"], order_json, game_mode, my_group),
+        "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+        (layout_id, now, bool(result["possible"]), result["failed_at"], order_json, game_mode, my_group),
     )
     conn.commit()
     conn.close()
@@ -19,11 +20,13 @@ def save_solve(layout_id, result, game_mode="freeform", my_group=None):
 
 def get_latest_solve(layout_id):
     conn = get_db()
-    row = conn.execute(
-        "SELECT possible, failed_at, order_json, game_mode, my_group FROM solves "
-        "WHERE layout_id = ? ORDER BY id DESC LIMIT 1",
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT TOP (1) possible, failed_at, order_json, game_mode, my_group FROM solves "
+        "WHERE layout_id = %s ORDER BY id DESC",
         (layout_id,),
-    ).fetchone()
+    )
+    row = cur.fetchone()
     conn.close()
     if row is None:
         return None

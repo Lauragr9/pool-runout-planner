@@ -7,7 +7,8 @@ from flask import Flask, g, jsonify, request
 from flask_cors import CORS
 
 import repository
-from db import get_db, init_db
+from db import get_db
+from migrate import run_migrations
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("layouts")
@@ -19,7 +20,7 @@ UI_ORIGIN = os.environ.get("UI_ORIGIN", "http://localhost:8080")
 def create_app():
     app = Flask(__name__)
     CORS(app, origins=[UI_ORIGIN])
-    init_db()
+    run_migrations()
 
     @app.before_request
     def _start_timer():
@@ -37,14 +38,19 @@ def create_app():
     def health():
         try:
             conn = get_db()
-            conn.execute("CREATE TABLE IF NOT EXISTS _health (id INTEGER PRIMARY KEY, pinged_at TEXT)")
-            conn.execute("DELETE FROM _health")
-            conn.execute(
-                "INSERT INTO _health (pinged_at) VALUES (?)",
+            cur = conn.cursor()
+            cur.execute(
+                "IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = '_health') "
+                "CREATE TABLE _health (id INT IDENTITY(1,1) PRIMARY KEY, pinged_at NVARCHAR(32))"
+            )
+            cur.execute("DELETE FROM _health")
+            cur.execute(
+                "INSERT INTO _health (pinged_at) VALUES (%s)",
                 (datetime.now(timezone.utc).isoformat(),),
             )
             conn.commit()
-            row = conn.execute("SELECT pinged_at FROM _health").fetchone()
+            cur.execute("SELECT pinged_at FROM _health")
+            row = cur.fetchone()
             conn.close()
             if row is None:
                 raise RuntimeError("health round-trip returned no row")

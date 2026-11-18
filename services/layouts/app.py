@@ -9,6 +9,7 @@ from flask_cors import CORS
 import repository
 from db import get_db
 from migrate import run_migrations
+from validation import ValidationError, validate_attempt_payload, validate_layout_payload
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("layouts")
@@ -61,8 +62,12 @@ def create_app():
 
     @app.post("/layouts")
     def create_layout():
-        data = request.get_json()
-        layout_id = repository.create_layout(data["cue"], data["balls"])
+        data = request.get_json(silent=True)
+        try:
+            cue, balls = validate_layout_payload(data)
+        except ValidationError as error:
+            return jsonify({"error": str(error)}), 400
+        layout_id = repository.create_layout(cue, balls)
         return jsonify({"id": layout_id}), 201
 
     @app.get("/layouts/<int:layout_id>")
@@ -78,8 +83,14 @@ def create_app():
 
     @app.post("/layouts/<int:layout_id>/attempts")
     def log_attempt(layout_id):
-        data = request.get_json()
-        repository.log_attempt(layout_id, data.get("succeeded"), data.get("notes", ""))
+        data = request.get_json(silent=True)
+        try:
+            succeeded, notes = validate_attempt_payload(data)
+        except ValidationError as error:
+            return jsonify({"error": str(error)}), 400
+        if not repository.layout_exists(layout_id):
+            return jsonify({"error": "not found"}), 404
+        repository.log_attempt(layout_id, succeeded, notes)
         return jsonify({"ok": True}), 201
 
     return app

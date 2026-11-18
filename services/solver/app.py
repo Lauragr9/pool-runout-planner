@@ -74,11 +74,13 @@ def create_app():
         data = request.get_json(silent=True) or {}
         game_mode = data.get("game_mode", "freeform")
         my_group = data.get("my_group")
+        solve_start = time.monotonic()
         try:
             result = find_runout(layout["cue"], layout["balls"], game_mode=game_mode, my_group=my_group)
         except ValueError as error:
             return jsonify({"error": str(error)}), 400
-        results_repository.save_solve(layout_id, result, game_mode, my_group)
+        duration_ms = (time.monotonic() - solve_start) * 1000
+        results_repository.save_solve(layout_id, result, game_mode, my_group, duration_ms)
         return jsonify(result)
 
     @app.get("/solves/<int:layout_id>")

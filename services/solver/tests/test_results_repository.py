@@ -15,10 +15,10 @@ def test_save_and_get_a_possible_solve_roundtrip(clean_db):
                     "cue_rest_position": {"x": 10.0, "y": 10.0}}],
     }
 
-    results_repo.save_solve(layout_id, result)
+    results_repo.save_solve(layout_id, result, duration_ms=1.5)
     saved = results_repo.get_latest_solve(layout_id)
 
-    assert saved == {**result, "game_mode": "freeform", "my_group": None}
+    assert saved == {**result, "game_mode": "freeform", "my_group": None, "duration_ms": 1.5}
 
 
 def test_save_and_get_an_impossible_solve(clean_db):
@@ -28,7 +28,7 @@ def test_save_and_get_an_impossible_solve(clean_db):
     results_repo.save_solve(layout_id, result, game_mode="eight_ball", my_group="solids")
     saved = results_repo.get_latest_solve(layout_id)
 
-    assert saved == {**result, "game_mode": "eight_ball", "my_group": "solids"}
+    assert saved == {**result, "game_mode": "eight_ball", "my_group": "solids", "duration_ms": None}
 
 
 def test_get_latest_solve_falls_back_to_freeform_for_a_legacy_row(clean_db):
@@ -52,6 +52,7 @@ def test_get_latest_solve_falls_back_to_freeform_for_a_legacy_row(clean_db):
     assert saved["my_group"] is None
     assert saved["possible"] is True
     assert saved["order"] == []
+    assert saved["duration_ms"] is None
 
 
 def test_get_latest_solve_returns_the_most_recent_one(clean_db):
@@ -62,4 +63,6 @@ def test_get_latest_solve_returns_the_most_recent_one(clean_db):
     results_repo.save_solve(layout_id, first, game_mode="freeform")
     results_repo.save_solve(layout_id, second, game_mode="nine_ball")
 
-    assert results_repo.get_latest_solve(layout_id) == {**second, "game_mode": "nine_ball", "my_group": None}
+    assert results_repo.get_latest_solve(layout_id) == {
+        **second, "game_mode": "nine_ball", "my_group": None, "duration_ms": None
+    }

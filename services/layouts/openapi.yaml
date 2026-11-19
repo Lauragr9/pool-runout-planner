@@ -1,0 +1,233 @@
+openapi: 3.0.3
+info:
+  title: layouts service
+  description: >
+    Owns saved table layouts (cue ball + object balls) and the attempts
+    logged against them. The solver service reads a layout from here over
+    HTTP before solving it; nothing ever writes to this database except
+    this service itself.
+  version: "1.0.0"
+servers:
+  - url: http://localhost:8100
+    description: Local compose, from the host
+  - url: http://layouts:8000
+    description: Local compose, from another service container
+paths:
+  /health:
+    get:
+      summary: Liveness and own-database check
+      operationId: health
+      responses:
+        "200":
+          description: The service can read and write its own database.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+              example: { status: ok, db: ok, version: dev }
+        "503":
+          description: The service's own database is not reachable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+              example: { status: error, db: error, version: dev }
+  /layouts:
+    post:
+      summary: Save a new layout
+      operationId: createLayout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LayoutInput"
+      responses:
+        "201":
+          description: Layout saved.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id]
+                properties:
+                  id:
+                    type: integer
+        "400":
+          description: >
+            cue or balls is missing, a coordinate is not a number, a ball
+            has no integer number, or a point falls outside the table
+            bounds (0-100 x 0-50).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    get:
+      summary: List the most recently created layouts
+      description: Each layout includes its balls and every attempt logged against it.
+      operationId: listRecentLayouts
+      responses:
+        "200":
+          description: Up to 20 layouts, most recently created first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LayoutWithAttempts"
+  /layouts/{layoutId}:
+    get:
+      summary: Fetch one layout's cue ball and balls
+      operationId: getLayout
+      parameters:
+        - $ref: "#/components/parameters/LayoutId"
+      responses:
+        "200":
+          description: The layout exists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Layout"
+        "404":
+          description: No layout with that id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /layouts/{layoutId}/attempts:
+    post:
+      summary: Log whether a run-out attempt at this layout succeeded
+      operationId: logAttempt
+      parameters:
+        - $ref: "#/components/parameters/LayoutId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AttemptInput"
+      responses:
+        "201":
+          description: Attempt logged.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok:
+                    type: boolean
+        "400":
+          description: succeeded is missing or not strictly true/false, or notes is not a string.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: No layout with that id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+components:
+  parameters:
+    LayoutId:
+      name: layoutId
+      in: path
+      required: true
+      schema:
+        type: integer
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+    HealthStatus:
+      type: object
+      required: [status, db, version]
+      properties:
+        status:
+          type: string
+          enum: [ok, error]
+        db:
+          type: string
+          enum: [ok, error]
+        version:
+          type: string
+    Point:
+      type: object
+      required: [x, y]
+      properties:
+        x:
+          type: number
+          minimum: 0
+          maximum: 100
+        y:
+          type: number
+          minimum: 0
+          maximum: 50
+    Ball:
+      allOf:
+        - $ref: "#/components/schemas/Point"
+        - type: object
+          required: [number]
+          properties:
+            number:
+              type: integer
+    LayoutInput:
+      type: object
+      required: [cue, balls]
+      properties:
+        cue:
+          $ref: "#/components/schemas/Point"
+        balls:
+          type: array
+          items:
+            $ref: "#/components/schemas/Ball"
+    Layout:
+      type: object
+      required: [id, cue, balls]
+      properties:
+        id:
+          type: integer
+        cue:
+          $ref: "#/components/schemas/Point"
+        balls:
+          type: array
+          items:
+            $ref: "#/components/schemas/Ball"
+    Attempt:
+      type: object
+      required: [succeeded, notes, created_at]
+      properties:
+        succeeded:
+          type: boolean
+        notes:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    LayoutWithAttempts:
+      allOf:
+        - $ref: "#/components/schemas/Layout"
+        - type: object
+          required: [created_at, attempts]
+          properties:
+            created_at:
+              type: string
+              format: date-time
+            attempts:
+              type: array
+              items:
+                $ref: "#/components/schemas/Attempt"
+    AttemptInput:
+      type: object
+      required: [succeeded]
+      properties:
+        succeeded:
+          type: boolean
+        notes:
+          type: string
+          default: ""

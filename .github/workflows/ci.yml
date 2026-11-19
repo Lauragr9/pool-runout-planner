@@ -98,7 +98,7 @@ jobs:
         working-directory: services/${{ matrix.service }}
         env:
           DATABASE_URL: "mssql://${{ matrix.service }}_user:${{ env.CI_DB_PASSWORD }}@localhost:1433/${{ matrix.service }}"
-        run: pytest --cov=. --cov-report=term-missing --cov-fail-under=70
+        run: python -m pytest --cov=. --cov-report=term-missing --cov-fail-under=70
 
   build:
     name: Build ${{ matrix.service }} image

@@ -1,0 +1,117 @@
+name: CI
+
+# push: branches-ignore main so a push that merges into main isn't tested
+# twice (once here, once when cd.yml calls this workflow via workflow_call
+# for the deploy). pull_request: every PR into main, before it can merge.
+on:
+  push:
+    branches-ignore: [main]
+  pull_request:
+  workflow_call:
+
+env:
+  # Credentials for the SQL Server container this job creates and destroys
+  # itself: nothing outside this one run can ever reach it, so these
+  # protect nothing (unlike the real per-service DB passwords, which will
+  # be GitHub Actions secrets used only in cd.yml). Still derived from
+  # github.run_id rather than written as a literal, so no string that
+  # looks like a password ever sits in the repository or its history.
+  CI_SA_PASSWORD: "P4ssw0rd-${{ github.run_id }}!"
+  CI_DB_PASSWORD: "P4ssw0rd-${{ github.run_id }}-db!"
+
+jobs:
+  system-description:
+    name: Validate system.yaml and OpenAPI documents
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install validators
+        run: pip install pyyaml==6.0.2 jsonschema==4.23.0 openapi-spec-validator==0.7.1
+      - name: Validate system.yaml against system.schema.json
+        run: |
+          python -c "
+          import json, yaml, jsonschema
+          schema = json.load(open('system.schema.json'))
+          data = yaml.safe_load(open('system.yaml'))
+          jsonschema.validate(data, schema)
+          print('system.yaml is valid')
+          "
+      - name: Validate OpenAPI documents
+        run: |
+          openapi-spec-validator services/layouts/openapi.yaml
+          openapi-spec-validator services/solver/openapi.yaml
+
+  test:
+    name: Test ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [layouts, solver]
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_SA_PASSWORD: "P4ssw0rd-${{ github.run_id }}!"
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P P4ssw0rd-${{ github.run_id }}! -C -Q 'SELECT 1' || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+          --health-start-period 30s
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        working-directory: services/${{ matrix.service }}
+        run: pip install -r requirements.txt flake8==7.1.1
+
+      - name: Lint
+        working-directory: services/${{ matrix.service }}
+        run: flake8 --max-line-length=100 --exclude=.venv,__pycache__ .
+
+      - name: Create the service databases and logins
+        # Mirrors db/init.sql exactly as compose runs it locally, against
+        # the sqlserver service container started for this job.
+        run: |
+          docker run --rm --network host \
+            -v ${{ github.workspace }}/db:/scripts:ro \
+            -e SA_PASSWORD="$CI_SA_PASSWORD" \
+            -e LAYOUTS_DB_PASSWORD="$CI_DB_PASSWORD" \
+            -e SOLVER_DB_PASSWORD="$CI_DB_PASSWORD" \
+            mcr.microsoft.com/mssql/server:2022-latest \
+            /bin/bash -c '/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$SA_PASSWORD" -C \
+              -v LayoutsPassword="$LAYOUTS_DB_PASSWORD" SolverPassword="$SOLVER_DB_PASSWORD" \
+              -i /scripts/init.sql'
+
+      - name: Test with coverage (fails under 70%)
+        working-directory: services/${{ matrix.service }}
+        env:
+          DATABASE_URL: "mssql://${{ matrix.service }}_user:${{ env.CI_DB_PASSWORD }}@localhost:1433/${{ matrix.service }}"
+        run: pytest --cov=. --cov-report=term-missing --cov-fail-under=70
+
+  build:
+    name: Build ${{ matrix.service }} image
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [layouts, solver]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: services/${{ matrix.service }}
+          push: false
+          provenance: false

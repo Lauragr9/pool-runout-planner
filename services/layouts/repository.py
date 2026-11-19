@@ -67,7 +67,8 @@ def log_attempt(layout_id, succeeded, notes):
         cur = conn.cursor()
         now = datetime.now(timezone.utc).isoformat()
         cur.execute(
-            "INSERT INTO attempts (layout_id, created_at, succeeded, notes) VALUES (%s, %s, %s, %s)",
+            "INSERT INTO attempts (layout_id, created_at, succeeded, notes) "
+            "VALUES (%s, %s, %s, %s)",
             (layout_id, now, succeeded, notes),
         )
         conn.commit()
@@ -91,12 +92,14 @@ def list_recent_layouts(limit=20):
         layouts = []
         for row in layout_rows:
             cur.execute(
-                "SELECT ball_number, x, y FROM layout_balls WHERE layout_id = %s ORDER BY ball_number",
+                "SELECT ball_number, x, y FROM layout_balls "
+                "WHERE layout_id = %s ORDER BY ball_number",
                 (row["id"],),
             )
             ball_rows = cur.fetchall()
             cur.execute(
-                "SELECT succeeded, notes, created_at FROM attempts WHERE layout_id = %s ORDER BY id",
+                "SELECT succeeded, notes, created_at FROM attempts "
+                "WHERE layout_id = %s ORDER BY id",
                 (row["id"],),
             )
             attempt_rows = cur.fetchall()

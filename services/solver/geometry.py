@@ -76,9 +76,15 @@ def _ray_circle_hit_distance(origin, direction, center, radius):
     return nearest if nearest >= 0 else None
 
 
-def cue_rest_position(cue_pos, object_ball, pocket, shot_type="stun",
-                       ball_radius=DEFAULT_BALL_RADIUS, speed=DEFAULT_SHOT_SPEED,
-                       blockers=None):
+def cue_rest_position(
+    cue_pos,
+    object_ball,
+    pocket,
+    shot_type="stun",
+    ball_radius=DEFAULT_BALL_RADIUS,
+    speed=DEFAULT_SHOT_SPEED,
+    blockers=None,
+):
     """Where the cue ball ends up after the shot: an approximation that
     involves both translation and rotation, not just the instant-of-contact
     geometry.

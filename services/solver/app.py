@@ -76,7 +76,9 @@ def create_app():
         my_group = data.get("my_group")
         solve_start = time.monotonic()
         try:
-            result = find_runout(layout["cue"], layout["balls"], game_mode=game_mode, my_group=my_group)
+            result = find_runout(
+                layout["cue"], layout["balls"], game_mode=game_mode, my_group=my_group
+            )
         except ValueError as error:
             return jsonify({"error": str(error)}), 400
         duration_ms = (time.monotonic() - solve_start) * 1000

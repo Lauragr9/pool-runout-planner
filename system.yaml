@@ -1,0 +1,63 @@
+# yaml-language-server: $schema=./system.schema.json
+student: lgonzalez.ieu2024
+prefix: lgonzalez-ieu2024
+# TODO (Phase 8, Saturday): replace with the real static website endpoint
+# once the storage account exists (`az storage account show ...
+# --query "primaryEndpoints.web"`).
+public_url: https://lgonzalezieu2024ui.z1.web.core.windows.net
+ui:
+  path: ui
+  storage_account: lgonzalezieu2024ui
+  calls: [layouts, solver]
+azure:
+  resource_group: rg-lgonzalez-ieu2024
+  container_apps_environment: lgonzalez-ieu2024-env
+  sql_server: lgonzalez-ieu2024-sql
+  registry: ghcr.io/lauragr9
+services:
+  layouts:
+    description: Saved table layouts (cue ball + balls) and the attempts logged against them.
+    path: services/layouts
+    openapi: services/layouts/openapi.yaml
+    port_default: 8000
+    health: /health
+    migrations: services/layouts/migrations
+    env:
+      PORT: { default: 8000, description: Port the service listens on }
+      DATABASE_URL: { secret: true, description: Connection string of the layouts database }
+      UI_ORIGIN: { default: "http://localhost:8080", description: Origin allowed to call this service (CORS) }
+      GIT_SHA: { default: dev, description: "Commit SHA reported by /health, set by CI/CD" }
+      DB_CONNECT_RETRIES: { default: 5, description: "Retries on startup if the database isn't reachable yet" }
+      DB_CONNECT_RETRY_DELAY_S: { default: 2, description: "Base delay, in seconds, between those retries" }
+    azure:
+      container_app: lgonzalez-ieu2024-layouts
+      sql_database: lgonzalez-ieu2024-layouts-db
+  solver:
+    description: Computes a run-out order for a saved layout and stores the result.
+    path: services/solver
+    openapi: services/solver/openapi.yaml
+    port_default: 8001
+    health: /health
+    migrations: services/solver/migrations
+    env:
+      PORT: { default: 8001, description: Port the service listens on }
+      DATABASE_URL: { secret: true, description: Connection string of the solver database }
+      LAYOUTS_URL: { default: "http://layouts:8000", description: Base URL of the layouts service }
+      LAYOUTS_TIMEOUT_S: { default: 2, description: Timeout in seconds for each call to layouts }
+      LAYOUTS_RETRIES: { default: 2, description: "Retries, with backoff, before giving up on layouts" }
+      UI_ORIGIN: { default: "http://localhost:8080", description: Origin allowed to call this service (CORS) }
+      GIT_SHA: { default: dev, description: "Commit SHA reported by /health, set by CI/CD" }
+      DB_CONNECT_RETRIES: { default: 5, description: "Retries on startup if the database isn't reachable yet" }
+      DB_CONNECT_RETRY_DELAY_S: { default: 2, description: "Base delay, in seconds, between those retries" }
+    calls:
+      - service: layouts
+        url_env: LAYOUTS_URL
+        endpoints: ["GET /layouts/{layoutId}"]
+        timeout_s: 2
+        on_failure: >-
+          POST /layouts/{layoutId}/solve returns 503 {"error": "layouts
+          service unavailable"} after retrying, instead of hanging or
+          guessing at the geometry.
+    azure:
+      container_app: lgonzalez-ieu2024-solver
+      sql_database: lgonzalez-ieu2024-solver-db

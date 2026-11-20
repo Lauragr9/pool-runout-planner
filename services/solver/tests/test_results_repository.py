@@ -11,8 +11,14 @@ def test_save_and_get_a_possible_solve_roundtrip(clean_db):
     result = {
         "possible": True,
         "failed_at": None,
-        "order": [{"ball": 1, "pocket": {"x": 0, "y": 0}, "cut_angle": 5.0,
-                    "cue_rest_position": {"x": 10.0, "y": 10.0}}],
+        "order": [
+            {
+                "ball": 1,
+                "pocket": {"x": 0, "y": 0},
+                "cut_angle": 5.0,
+                "cue_rest_position": {"x": 10.0, "y": 10.0},
+            }
+        ],
     }
 
     results_repo.save_solve(layout_id, result, duration_ms=1.5)

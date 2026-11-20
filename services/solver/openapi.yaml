@@ -1,0 +1,192 @@
+openapi: 3.0.3
+info:
+  title: solver service
+  description: >
+    Computes a run-out order for a saved layout and stores the result. It
+    has no database access to layouts: to solve a layout it calls the
+    layouts service's GET /layouts/{layoutId} over HTTP first (the
+    system's required server-side cross-seam call, see ADR-6).
+  version: "1.0.0"
+servers:
+  - url: http://localhost:8101
+    description: Local compose, from the host
+  - url: http://solver:8001
+    description: Local compose, from another service container
+paths:
+  /health:
+    get:
+      summary: Liveness and own-database check
+      operationId: health
+      responses:
+        "200":
+          description: The service can read and write its own database.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+              example: { status: ok, db: ok, version: dev }
+        "503":
+          description: The service's own database is not reachable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+              example: { status: error, db: error, version: dev }
+  /layouts/{layoutId}/solve:
+    post:
+      summary: Solve a layout's run-out order and save the result
+      description: >
+        Fetches {id, cue, balls} for layoutId from the layouts service
+        before solving. If layouts does not answer after retrying, this
+        returns 503 instead of hanging or guessing.
+      operationId: solveLayout
+      parameters:
+        - $ref: "#/components/parameters/LayoutId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SolveInput"
+      responses:
+        "200":
+          description: >
+            The solve ran. possible is false, with failed_at set, when no
+            run-out order exists; that is not an error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SolveResult"
+        "400":
+          description: >
+            Invalid game_mode or my_group, or a layout this solver is not
+            designed for (e.g. too many balls to pot).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: No layout with that id in the layouts service.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: The layouts service did not respond after retrying.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /solves/{layoutId}:
+    get:
+      summary: Fetch the most recent saved solve for a layout
+      operationId: getSolve
+      parameters:
+        - $ref: "#/components/parameters/LayoutId"
+      responses:
+        "200":
+          description: The latest solve, or null if this layout has never been solved.
+          content:
+            application/json:
+              schema:
+                nullable: true
+                allOf:
+                  - $ref: "#/components/schemas/StoredSolve"
+components:
+  parameters:
+    LayoutId:
+      name: layoutId
+      in: path
+      required: true
+      schema:
+        type: integer
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+    HealthStatus:
+      type: object
+      required: [status, db, version]
+      properties:
+        status:
+          type: string
+          enum: [ok, error]
+        db:
+          type: string
+          enum: [ok, error]
+        version:
+          type: string
+    Point:
+      type: object
+      required: [x, y]
+      properties:
+        x:
+          type: number
+        y:
+          type: number
+    SolveInput:
+      type: object
+      properties:
+        game_mode:
+          type: string
+          enum: [freeform, nine_ball, eight_ball]
+          default: freeform
+        my_group:
+          type: string
+          enum: [solids, stripes]
+          nullable: true
+          description: Only valid with game_mode "eight_ball"; restricts the run-out to one group.
+    ShotStep:
+      type: object
+      required: [ball, pocket, cut_angle, cue_rest_position, shot_type]
+      properties:
+        ball:
+          type: integer
+          description: Number of the ball this step pots.
+        pocket:
+          $ref: "#/components/schemas/Point"
+        cut_angle:
+          type: number
+          description: Degrees off a straight-in shot.
+        cue_rest_position:
+          $ref: "#/components/schemas/Point"
+        shot_type:
+          type: string
+          enum: [follow, stun, draw]
+    SolveResult:
+      type: object
+      required: [possible, order, failed_at]
+      properties:
+        possible:
+          type: boolean
+        order:
+          type: array
+          nullable: true
+          description: The shot sequence, in order, when possible is true; otherwise null.
+          items:
+            $ref: "#/components/schemas/ShotStep"
+        failed_at:
+          type: integer
+          nullable: true
+          description: >
+            Number of the first ball with no makeable shot, when possible
+            is false; otherwise null.
+    StoredSolve:
+      description: "What GET /solves/{layoutId} returns: a SolveResult plus the request that produced it."
+      allOf:
+        - $ref: "#/components/schemas/SolveResult"
+        - type: object
+          required: [game_mode, my_group, duration_ms]
+          properties:
+            game_mode:
+              type: string
+            my_group:
+              type: string
+              nullable: true
+            duration_ms:
+              type: number
+              nullable: true
+              description: Wall-clock time the solve took, in milliseconds.

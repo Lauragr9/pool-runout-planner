@@ -158,7 +158,9 @@ def find_runout(cue_pos, balls, game_mode="freeform", my_group=None):
             b for b in balls if b["number"] in group_numbers or b["number"] == EIGHT_BALL_NUMBER
         ]
         obstacles = [
-            b for b in balls if b["number"] not in group_numbers and b["number"] != EIGHT_BALL_NUMBER
+            b
+            for b in balls
+            if b["number"] not in group_numbers and b["number"] != EIGHT_BALL_NUMBER
         ]
     else:
         target_balls = balls
@@ -166,7 +168,9 @@ def find_runout(cue_pos, balls, game_mode="freeform", my_group=None):
 
     ball_cap = MAX_BALLS_NINE_BALL if game_mode == "nine_ball" else MAX_BALLS
     if len(target_balls) > ball_cap:
-        raise ValueError(f"layout has more than {ball_cap} balls to pot; solver is not designed for that")
+        raise ValueError(
+            f"layout has more than {ball_cap} balls to pot; solver is not designed for that"
+        )
 
     order = _search(cue_pos, target_balls, obstacles, game_mode)
     if order is None:

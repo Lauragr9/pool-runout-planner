@@ -230,7 +230,9 @@ def test_my_group_opponent_balls_still_block_shots():
     opponent_blocker = {"number": 9, "x": 23.66, "y": 11.83}
     eight = {"number": 8, "x": 90, "y": 45}
 
-    result = find_runout(cue, [mine, opponent_blocker, eight], game_mode="eight_ball", my_group="solids")
+    result = find_runout(
+        cue, [mine, opponent_blocker, eight], game_mode="eight_ball", my_group="solids"
+    )
 
     assert result["possible"] is False
     assert result["failed_at"] == 1

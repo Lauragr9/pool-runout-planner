@@ -2,7 +2,7 @@
 
 ## [1]. Backend language and framework: Python + Flask
 Date: 2026-09-26
-Status: Partially superseded by [7]: the database engine changed from SQLite to SQL Server, the Flask choice did not.
+Status: Superseded by [7]: the database engine changed from SQLite to SQL Server, the Flask choice did not.
 Context: I need to serve both a JSON API (create layouts, solve) and a single HTML page with a canvas, all from the same process, in a single container.
 Decision: I use Python, since it's the stack I feel most comfortable with and can explain without prior preparation. Within Python, I use Flask with the standard library's `sqlite3` (no ORM) and Jinja to serve the single HTML page.
 Alternatives considered: Django, which brings an ORM, an admin panel, and an app system built for projects with many models and complex views, is far more than I need for two small domains and a single page. FastAPI's async support brings no advantage here, since the app is used by one person at a time and there is no concurrent I/O to take advantage of.
@@ -26,7 +26,7 @@ Consequences: `get_layout` needs two queries (one for the layout, one for its ba
 
 ## [4]. Testing approach: line coverage doesn't prove the backtracking actually runs
 Date: 2026-09-30
-Status: Partially superseded by [9]: layouts' routes now have automated tests for the validation paths this decision originally left to manual verification, and the coverage gate in CI (ADR-9) now applies per service in the pipeline itself, not just to the modules this entry chose to measure by hand.
+Status: Superseded by [9]: layouts' routes now have automated tests for the validation paths this decision originally left to manual verification, and the coverage gate in CI (ADR-9) now applies per service in the pipeline itself, not just to the modules this entry chose to measure by hand.
 Context: §4 asks for tests on the "core business logic," not framework glue, at a 70% bar. `coverage.py` already said 98% before today, but line coverage only proves a line executed at least once. It doesn't prove every branch, like the search's backtracking retry, was ever actually exercised.
 Decision: Tests target `domains/solver` (geometry + search) and the two repository modules (`domains/layouts`, `domains/solver/results_repository`), using a temporary SQLite file per test; `app.py`'s routes and the frontend have no automated tests, since §4 excludes routing/glue and they were verified manually instead. On top of the coverage number, I specifically looked for and added a test that forces genuine backtracking: a ball with the easiest individual angle that turns out to lead to a dead end two moves later, so the search has to abandon it and fall back to a harder one.
 Alternatives considered: writing Flask-test-client integration tests against the routes --> rejected because they'd mostly re-test glue that already delegates to already-tested functions, and the time was better spent closing a real gap in the solver's own logic instead.

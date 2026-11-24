@@ -61,15 +61,23 @@ jobs:
         run: az config set extension.use_dynamic_install=yes_without_prompt
 
       - name: Point each Container App at today's image
+        # --set-env-vars only touches GIT_SHA (confirmed, by checking
+        # `az containerapp show` after the same call during the manual
+        # Phase 8 setup, that it upserts rather than replacing the whole
+        # env list) so DATABASE_URL/UI_ORIGIN/the retry-budget vars stay
+        # untouched. Without this, /health's "version" would stay "dev"
+        # forever even though the image really did change.
         run: |
           az containerapp update \
             --name ${{ vars.PREFIX }}-layouts \
             --resource-group ${{ vars.RESOURCE_GROUP }} \
-            --image "${{ env.LAYOUTS_IMAGE }}:${{ github.sha }}"
+            --image "${{ env.LAYOUTS_IMAGE }}:${{ github.sha }}" \
+            --set-env-vars "GIT_SHA=${{ github.sha }}"
           az containerapp update \
             --name ${{ vars.PREFIX }}-solver \
             --resource-group ${{ vars.RESOURCE_GROUP }} \
-            --image "${{ env.SOLVER_IMAGE }}:${{ github.sha }}"
+            --image "${{ env.SOLVER_IMAGE }}:${{ github.sha }}" \
+            --set-env-vars "GIT_SHA=${{ github.sha }}"
 
       - name: Read each service's live URL
         id: urls

@@ -1,0 +1,132 @@
+name: CD
+
+# Only main triggers this (ci.yml's own push trigger excludes main, so a
+# merge doesn't run CI twice). The deploy job only starts once ci.yml,
+# called here via workflow_call, has actually passed on this exact commit.
+on:
+  push:
+    branches: [main]
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    name: Deploy to Azure
+    needs: ci
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+      packages: write
+    env:
+      LAYOUTS_IMAGE: ghcr.io/lauragr9/pool-runout-planner-layouts
+      SOLVER_IMAGE: ghcr.io/lauragr9/pool-runout-planner-solver
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push the layouts image
+        uses: docker/build-push-action@v6
+        with:
+          context: services/layouts
+          push: true
+          provenance: false
+          tags: ${{ env.LAYOUTS_IMAGE }}:${{ github.sha }}
+
+      - name: Build and push the solver image
+        uses: docker/build-push-action@v6
+        with:
+          context: services/solver
+          push: true
+          provenance: false
+          tags: ${{ env.SOLVER_IMAGE }}:${{ github.sha }}
+
+      - name: Azure login (OIDC, no password stored)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Let az auto-install the containerapp extension
+        run: az config set extension.use_dynamic_install=yes_without_prompt
+
+      - name: Point each Container App at today's image
+        run: |
+          az containerapp update \
+            --name ${{ vars.PREFIX }}-layouts \
+            --resource-group ${{ vars.RESOURCE_GROUP }} \
+            --image "${{ env.LAYOUTS_IMAGE }}:${{ github.sha }}"
+          az containerapp update \
+            --name ${{ vars.PREFIX }}-solver \
+            --resource-group ${{ vars.RESOURCE_GROUP }} \
+            --image "${{ env.SOLVER_IMAGE }}:${{ github.sha }}"
+
+      - name: Read each service's live URL
+        id: urls
+        run: |
+          layouts_fqdn=$(az containerapp show --name ${{ vars.PREFIX }}-layouts --resource-group ${{ vars.RESOURCE_GROUP }} --query properties.configuration.ingress.fqdn -o tsv)
+          solver_fqdn=$(az containerapp show --name ${{ vars.PREFIX }}-solver --resource-group ${{ vars.RESOURCE_GROUP }} --query properties.configuration.ingress.fqdn -o tsv)
+          echo "layouts_url=https://$layouts_fqdn" >> "$GITHUB_OUTPUT"
+          echo "solver_url=https://$solver_fqdn" >> "$GITHUB_OUTPUT"
+
+      - name: Write ui/config.js with the real service URLs
+        run: |
+          cat > ui/config.js <<CONFIG
+          window.APP_CONFIG = {
+            LAYOUTS_URL: "${{ steps.urls.outputs.layouts_url }}",
+            SOLVER_URL: "${{ steps.urls.outputs.solver_url }}",
+          };
+          CONFIG
+
+      - name: Upload the UI to the $web container
+        # Data-plane blob access needs the account key, not the identity's
+        # Contributor role: Contributor is control-plane only and doesn't
+        # grant blob read/write via Azure AD, and the deployment contract
+        # asks for Contributor on the resource group only, nothing more.
+        # listing the key itself is a control-plane action Contributor
+        # does cover.
+        run: |
+          key=$(az storage account keys list \
+            --account-name ${{ vars.UI_STORAGE }} \
+            --resource-group ${{ vars.RESOURCE_GROUP }} \
+            --query "[0].value" -o tsv)
+          echo "::add-mask::$key"
+          az storage blob upload-batch \
+            --account-name ${{ vars.UI_STORAGE }} \
+            --account-key "$key" \
+            --destination '$web' \
+            --source ui \
+            --overwrite
+
+      - name: Wait for both services to report healthy
+        # Cold start can take up to ~60s to resume the paused database
+        # (A2 §7.5), so this allows for several minutes, not seconds.
+        run: |
+          for url in "${{ steps.urls.outputs.layouts_url }}" "${{ steps.urls.outputs.solver_url }}"; do
+            echo "checking $url/health"
+            ok=""
+            for attempt in $(seq 1 30); do
+              status=$(curl -s -o /dev/null -w "%{http_code}" "$url/health" || echo "000")
+              if [ "$status" = "200" ]; then
+                echo "$url is healthy"
+                ok=1
+                break
+              fi
+              echo "attempt $attempt: got $status, retrying in 10s"
+              sleep 10
+            done
+            if [ -z "$ok" ]; then
+              echo "::error::$url/health never returned 200"
+              exit 1
+            fi
+          done

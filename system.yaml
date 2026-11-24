@@ -1,9 +1,6 @@
 # yaml-language-server: $schema=./system.schema.json
 student: lgonzalez.ieu2024
 prefix: lgonzalez-ieu2024
-# TODO (Phase 8, Saturday): replace with the real static website endpoint
-# once the storage account exists (`az storage account show ...
-# --query "primaryEndpoints.web"`).
 public_url: https://lgonzalezieu2024ui.z1.web.core.windows.net
 ui:
   path: ui

@@ -4,60 +4,74 @@ A training tool for pool players (8-ball/9-ball). Given the position of the ball
 
 It is meant as an analysis tool **between games** (like consulting a chess engine after a game), not as an in-game assistant.
 
-## Structure (two domains)
-
-- `domains/layouts/` —-> **Layouts & sessions**: SQLite persistence of ball positions and the player's real attempts.
-- `domains/solver/` —-> **Solver engine**: geometry (which shots are blocked by other balls?) plus a backtracking search over both the shot order and, per ball, the shot type (stun/follow/draw). The algorithm itself (`engine.py`, `geometry.py`) never touches the database, but `results_repository.py` saves every computed result to its own `solves` table.
-
-The solver does not enumerate every possible sequence: it returns the best one it finds, or the point where it stops being possible. As mentioned before, for each shot it also picks a shot type (stun: no spin, the cue ball stops roughly where it hits the object ball; follow: topspin, it keeps rolling forward; draw: backspin, it pulls back), based on which one actually leaves a solvable position for the rest of the balls, not just a fixed default. "View history" shows the saved result for each layout, not a recomputed one, labelled with the game mode it was solved under. A layout that hasn't been solved yet shows as "Not solved yet." See `ADR.md` for the reasoning.
-
-The game mode (the three tabs at the top) changes which order is actually legal, based on the WPA rules: **Freeform** has no ordering constraint, it is just for practicing potential shots and angles, **9-Ball** only allows contacting the lowest-numbered remaining ball next, so the ball with the highest number has to be the last one in the sequence, and **8-Ball** only allows the ball numbered 8 once it is the last one left on the table. Each mode keeps its own independent layout; switching tabs never erases or mixes them.
-
-In **8-Ball**, since one player always has solids (1-7) and the other stripes (9-15), you can optionally say which group is yours. Once chosen, the solver only plans a sequence for your own balls plus the 8 at the end; the opponent's balls stay on the table as fixed obstacles (they can still block a shot) but are never part of the sequence. Leaving it unset keeps the old behavior of planning a full table clear.
+**Live URL:** https://lgonzalezieu2024ui.z1.web.core.windows.net
 
 ## Architecture
 
-The whole app is a single Flask process (`app.py`), meaning no background workers, queues, or separate services, matching the single-process/single-container deployment contract.
+Two independent services, split along the domain boundary from Assignment 1 (see [ADR-2](ADR.md), [ADR-6](ADR.md)):
 
-A browser request arrives as JSON over `fetch`, hits a Flask route, and that route is the only place that talks to both domains: it reads or writes through `domains/layouts/repository.py`, hands plain data to the pure solver algorithm in `domains/solver/engine.py`, and saves the result through `domains/solver/results_repository.py`. Everything persists to one SQLite file (see Configuration below).
+- `services/layouts/`: owns saved table layouts (cue ball + balls) and the attempts logged against them. Its own Azure SQL database.
+- `services/solver/`: computes a run-out order for a layout and stores the result. Its own Azure SQL database. Calls `layouts` over HTTP (`GET /layouts/{id}`) to fetch the geometry before solving; this is the one required server-side cross-seam call ([ADR-6](ADR.md)).
+- `ui/`: static HTML/CSS/JS, calling both services directly from the browser. Served by `nginx:alpine` locally (no Dockerfile, not a service container), and by an Azure Storage static website in production.
 
-See [`docs/diagrams.md`](docs/diagrams.md) for the architecture and database schema diagrams, kept in sync with ADR-2 and ADR-3.
+Full system description: [`system.yaml`](system.yaml) (validated against [`system.schema.json`](system.schema.json)), and `services/<name>/openapi.yaml` per service. Decisions and tradeoffs: [`ADR.md`](ADR.md).
 
-## Configuration
-
-The app is configured entirely through environment variables, so no `.env` file is required, and nothing needs editing in the source to reconfigure it:
-
-- `PORT` —-> port Flask listens on (default `5000`)
-- `DATA_DIR` —-> folder where the SQLite file (`runout.db`) is stored (default `data`)
-
-Both have sane defaults, so `python app.py` with no environment variables set works out of the box.
-
-## Requirements
-
-- Python 3.10+
-
-## Running it
+## Running locally (docker compose)
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python app.py
+cp .env.example .env   # fill in SA_PASSWORD, LAYOUTS_DB_PASSWORD, SOLVER_DB_PASSWORD
+docker compose up --build
 ```
 
-By default it listens on port `5000` and stores the SQLite database at `data/runout.db` (see Configuration above to change either).
+This brings up SQL Server, a one-off `db-init` job that creates both databases and their logins (idempotent, safe to run again), both services, and the UI:
 
-Open `http://localhost:<PORT>/` in the browser, select a game mode (Freeform, 9-Ball, or 8-Ball), and click on the table to place the cue ball. Then, the way of placing the different balls depends on the game mode: in Freeform, simply clicking a spot on the table places a ball (sequentially from lowest to highest number). In 9-Ball and 8-Ball modes, you need to select the specific ball number from the row above the table before clicking the position where you want to place it (9-Ball offers balls 1 through 9; 8-Ball offers the full set of 15 balls: solids 1-7, the 8-ball, and stripes 9-15, represented as a white ball with a colored band through the middle). In 8-Ball, you can also choose your assigned group (solids or stripes); the opponent's balls will appear dimmed on the table, as their role is to act as obstacles rather than targets to be pocketed. Once the layout is set, click "Save & Solve", and it will tell you if a run-out is possible or not (if not, it will tell you which ball blocked the sequence). You can also click Reset to start over. After a successful resolution, you can log whether or not you completed the shot. The "View history" option displays a list of recent configurations and the logged attempts associated with them, limited to the 20 most recently created layouts: once you pass that count, older layouts (and any attempts logged against them) stop appearing.
+- UI: http://localhost:8080
+- `layouts`: http://localhost:8100 (container port 8000)
+- `solver`: http://localhost:8101 (container port 8001)
 
-## Tests & coverage
+Both services run their own versioned migrations on startup (`services/<name>/migrations/*.sql`, tracked in a `schema_migrations` table, each one applied at most once).
 
-The tests cover the two domains' actual logic: the solver's geometry/search, and both domains' repository modules (`domains/layouts` and `domains/solver/results_repository`), not the Flask routes themselves, which were verified manually instead. Repository tests point SQLite at a temporary file per test (see `tests/test_layouts_repository.py` and `tests/test_solver_results_repository.py`), so they never touch the real `data/runout.db`.
+## Running a single service
+
+Each service is independent and only needs its own database reachable, not the other service running. The quickest way to get one: `docker compose up sqlserver db-init` (brings up just SQL Server and creates both databases/logins, no app containers), then run the service directly from `services/layouts/` or `services/solver/`:
 
 ```bash
+cd services/layouts   # or services/solver
+python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-python -m pytest --cov=domains --cov-report=term-missing
+DATABASE_URL="mssql://layouts_user:<password>@localhost:1433/layouts" python app.py
 ```
 
-Current result: **49 tests, 99% coverage across `domains/layouts` and `domains/solver`**.
+`solver` additionally needs `LAYOUTS_URL` pointing at a running `layouts` instance (default `http://layouts:8000`, override for local use e.g. `http://localhost:8100`). Every environment variable each service reads, with its default, is listed in [`system.yaml`](system.yaml).
 
+## Tests and coverage
 
+Each service has its own test suite and dependency manifest; both need a reachable SQL Server (the compose stack, or any SQL Server instance with that service's database and login already created):
+
+```bash
+cd services/layouts   # or services/solver
+pip install -r requirements.txt
+python -m pytest --cov=. --cov-report=term-missing
+```
+
+CI (`.github/workflows/ci.yml`) runs this same command per service against a throwaway SQL Server container on every push and pull request, gated at 70% coverage per service, alongside linting, a `system.yaml`/OpenAPI validation job, and a Docker build of both images. One integration test crossing the seam for real (`tests/integration/test_cross_seam.py`, against the live compose stack) and manually captured partial-failure evidence (stopping one service, see [`docs/partial-failure-evidence.md`](docs/partial-failure-evidence.md)) cover what per-service unit tests can't.
+
+## Deployment
+
+Both services run on Azure Container Apps (Consumption plan, scale to zero), each with its own Azure SQL Database on the serverless free offer, behind a shared SQL logical server. The UI is an Azure Storage static website. See [ADR-8](ADR.md) for the full reasoning (cost model, cold starts, scale-to-zero consequences).
+
+**Pipeline:** every push and pull request runs CI. Every merge to `main` runs `.github/workflows/cd.yml`: it calls `ci.yml` first and only proceeds if that passes, then builds and pushes both images to GHCR (tagged by commit SHA), signs in to Azure via OIDC (a user-assigned managed identity, no password ever stored), points each Container App at the new image, regenerates `ui/config.js` with the live service URLs, uploads the UI to the storage account's `$web` container, and retries `/health` on both services for several minutes before failing the run. Nothing is deployed manually after the initial setup below.
+
+**Reproducing the initial Azure setup** (one-time, done once per subscription, not run by the pipeline): followed the course's Azure deployment guide, with infrastructure as Bicep instead of inline `az` commands ([ADR-8](ADR.md)).
+
+1. Activated Azure for Students, picked an allowed region supporting the SQL free offer (`az policy assignment list` / `az sql db create`'s error message confirm which), and selected the subscription.
+2. Registered the required resource providers (`Microsoft.App`, `Microsoft.OperationalInsights`, `Microsoft.Sql`, `Microsoft.Storage`, `Microsoft.ManagedIdentity`) and created the resource group.
+3. Deployed `infra/main.bicep` with `infra/main.bicepparam` (`az deployment group create`), which provisions: the Container Apps environment and both Container Apps (placeholder image to start), the shared SQL server and one free-offer serverless database per service, the UI storage account, and the `<prefix>-github` managed identity with Contributor scoped to just this resource group. All passwords come from local environment variables (`readEnvironmentVariable(...)`), never committed.
+4. Enabled the storage account's static website feature and created the per-service SQL logins/users (`db/azure-init-master.sql`, then `db/azure-init-db-user.sql` once per database), both data-plane operations Bicep can't express, done as one-off `az`/`sqlcmd` steps.
+5. Built and pushed both images to GHCR once by hand, made the packages public, and pointed each Container App at the real image, replacing the placeholder.
+6. Created the OIDC federated credential for the managed identity (trusting `repo:<owner>/<repo>:ref:refs/heads/main`) and set it, plus the per-service database passwords, as GitHub Actions secrets; `PREFIX`/`RESOURCE_GROUP`/`UI_STORAGE` as repository variables. From here on, `cd.yml` does every subsequent deploy.
+7. Granted the Reader role on the resource group to the course's graders.
+
+## AI usage
+
+I acknowledge the use of Claude Code (Anthropic, Claude Sonnet 5) throughout this project, to scaffold the initial application, design and review the service split and the Azure infrastructure, write tests, debug deployment issues, and draft documentation. The prompts used include asking it to scaffold a domain and its tests, to re-check infrastructure changes against the literal assignment and deployment guide text before deploying anything, to debug specific failing CI/CD runs, and to draft ADR/README content for my own review and edits. The output of these prompts was used to accept, modify, or reject each change individually, recorded row by row in [`AI_USAGE.md`](AI_USAGE.md), the detailed log.

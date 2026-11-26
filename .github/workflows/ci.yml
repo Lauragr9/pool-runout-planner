@@ -114,4 +114,70 @@ jobs:
         with:
           context: services/${{ matrix.service }}
           push: false
+          load: true
           provenance: false
+          tags: ${{ matrix.service }}:ci
+      - name: Install Trivy
+        # Pinned to the same tag as the install target, not main: a moving
+        # branch for the install script itself would be exactly the
+        # unpinned-supply-chain risk this whole addition is meant to guard
+        # against.
+        run: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/v0.76.2/contrib/install.sh | sh -s -- -b /usr/local/bin v0.76.2
+      - name: Scan image for known CVEs (Trivy)
+        # --ignore-unfixed: only CVEs Debian has actually shipped a patch
+        # for, same reasoning as the Dockerfile's own apt-get upgrade step,
+        # found and verified clean locally before wiring in as a gate.
+        run: trivy image --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 ${{ matrix.service }}:ci
+
+  sast:
+    name: SAST (Semgrep)
+    runs-on: ubuntu-latest
+    container: semgrep/semgrep
+    steps:
+      - uses: actions/checkout@v4
+      - name: Semgrep scan
+        # --error fails the job on any finding; the two app.run(host="0.0.0.0")
+        # lines and client.py's http:// LAYOUTS_URL default are suppressed
+        # inline (# nosemgrep) with a comment explaining why each is correct
+        # here, not disabled at the ruleset level.
+        run: >
+          semgrep scan --error
+          --config p/security-audit
+          --config p/owasp-top-ten
+          services/
+
+  sca:
+    name: SCA (pip-audit) ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [layouts, solver]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pip-audit
+        run: pip install pip-audit==2.10.1
+      - name: Audit dependencies for known CVEs
+        working-directory: services/${{ matrix.service }}
+        run: pip-audit -r requirements.txt
+
+  secrets-scan:
+    name: Secret scanning (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history, not the default shallow clone: gitleaks scans
+          # every past commit, not just the current tree, since a secret
+          # removed in a later commit is still a leak (§5).
+          fetch-depth: 0
+      - name: Install gitleaks
+        run: |
+          curl -sfL -o gitleaks.tar.gz https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+          tar -xzf gitleaks.tar.gz gitleaks
+          sudo mv gitleaks /usr/local/bin/
+      - name: Scan full git history for secrets
+        run: gitleaks detect --source . -v

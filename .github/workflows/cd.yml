@@ -23,7 +23,7 @@ jobs:
       LAYOUTS_IMAGE: ghcr.io/lauragr9/pool-runout-planner-layouts
       SOLVER_IMAGE: ghcr.io/lauragr9/pool-runout-planner-solver
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: docker/setup-buildx-action@v3
 

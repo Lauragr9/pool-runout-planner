@@ -300,11 +300,22 @@ function renderAttemptControls(layoutId) {
   buttons.className = "attempt-buttons";
 
   async function logAttempt(succeeded) {
-    await fetch(`${APP_CONFIG.LAYOUTS_URL}/layouts/${layoutId}/attempts`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ succeeded, notes: notesInput.value }),
-    });
+    try {
+      const response = await fetch(`${APP_CONFIG.LAYOUTS_URL}/layouts/${layoutId}/attempts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ succeeded, notes: notesInput.value }),
+      });
+      if (!response.ok) {
+        throw new Error(`layouts responded ${response.status}`);
+      }
+    } catch {
+      const errorMsg = document.createElement("p");
+      errorMsg.className = "attempt-error";
+      errorMsg.textContent = "Could not log the attempt — try again in a moment.";
+      container.appendChild(errorMsg);
+      return;
+    }
     container.innerHTML = "";
     const confirmMsg = document.createElement("p");
     confirmMsg.className = "attempt-confirm";
@@ -542,23 +553,34 @@ document.getElementById("solve").addEventListener("click", async () => {
   }
 
   resultBox.textContent = "Solving...";
-  const createResponse = await fetch(`${APP_CONFIG.LAYOUTS_URL}/layouts`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ cue: state.cue, balls: state.balls }),
-  });
-  const { id } = await createResponse.json();
+  let id, result;
+  try {
+    const createResponse = await fetch(`${APP_CONFIG.LAYOUTS_URL}/layouts`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cue: state.cue, balls: state.balls }),
+    });
+    ({ id } = await createResponse.json());
 
-  const solveBody = { game_mode: gameMode };
-  if (gameMode === "eight_ball" && state.myGroup) {
-    solveBody.my_group = state.myGroup;
+    const solveBody = { game_mode: gameMode };
+    if (gameMode === "eight_ball" && state.myGroup) {
+      solveBody.my_group = state.myGroup;
+    }
+    const solveResponse = await fetch(`${APP_CONFIG.SOLVER_URL}/layouts/${id}/solve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(solveBody),
+    });
+    result = await solveResponse.json();
+  } catch {
+    // Covers a cold-starting container: Azure's ingress answers the first
+    // request with a non-JSON 503 ("App port is not ready") before the
+    // service is even listening (A2 §7.5), and a dropped connection fails
+    // the fetch itself. Either way this must not leave "Solving..." stuck
+    // forever with no feedback.
+    resultBox.textContent = "Starting up or temporarily unavailable — try again in a moment.";
+    return;
   }
-  const solveResponse = await fetch(`${APP_CONFIG.SOLVER_URL}/layouts/${id}/solve`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(solveBody),
-  });
-  const result = await solveResponse.json();
 
   if (result.error) {
     resultBox.textContent = `Could not solve: ${result.error}`;

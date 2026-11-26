@@ -24,8 +24,12 @@ def get_layout(layout_id):
     last_error = None
     for attempt in range(LAYOUTS_RETRIES + 1):
         try:
+            # LAYOUTS_URL's http:// default is for compose's own isolated
+            # docker network only; main.bicep sets it to the real https://
+            # Container Apps FQDN for Azure, where this traffic leaves the
+            # process (A2 §7.2).
             response = requests.get(
-                f"{LAYOUTS_URL}/layouts/{layout_id}", timeout=LAYOUTS_TIMEOUT_S
+                f"{LAYOUTS_URL}/layouts/{layout_id}", timeout=LAYOUTS_TIMEOUT_S  # nosemgrep
             )
         except requests.RequestException as error:
             last_error = error

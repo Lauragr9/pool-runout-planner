@@ -100,4 +100,7 @@ app = create_app()
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8001))
-    app.run(host="0.0.0.0", port=port)
+    # 0.0.0.0 is required, not a mistake: this process is the only thing
+    # in its container, and binding to localhost would make it unreachable
+    # from the compose network or Azure Container Apps' ingress.
+    app.run(host="0.0.0.0", port=port)  # nosemgrep

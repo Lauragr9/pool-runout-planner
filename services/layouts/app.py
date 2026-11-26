@@ -37,6 +37,7 @@ def create_app():
 
     @app.get("/health")
     def health():
+        conn = None
         try:
             conn = get_db()
             cur = conn.cursor()
@@ -52,13 +53,15 @@ def create_app():
             conn.commit()
             cur.execute("SELECT pinged_at FROM _health")
             row = cur.fetchone()
-            conn.close()
             if row is None:
                 raise RuntimeError("health round-trip returned no row")
             return jsonify({"status": "ok", "db": "ok", "version": GIT_SHA}), 200
         except Exception:
             logger.exception("health check failed")
             return jsonify({"status": "error", "db": "error", "version": GIT_SHA}), 503
+        finally:
+            if conn is not None:
+                conn.close()
 
     @app.post("/layouts")
     def create_layout():

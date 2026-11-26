@@ -4,9 +4,7 @@ from urllib.parse import urlparse
 
 import pymssql
 
-DATABASE_URL = os.environ.get(
-    "DATABASE_URL", "mssql://layouts_user:layouts_pw@sqlserver:1433/layouts"
-)
+DATABASE_URL = os.environ["DATABASE_URL"]
 CONNECT_RETRIES = int(os.environ.get("DB_CONNECT_RETRIES", 5))
 CONNECT_RETRY_DELAY_S = float(os.environ.get("DB_CONNECT_RETRY_DELAY_S", 2))
 

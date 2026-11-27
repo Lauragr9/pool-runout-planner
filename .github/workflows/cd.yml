@@ -35,7 +35,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push the layouts image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: services/layouts
           push: true
@@ -43,7 +43,7 @@ jobs:
           tags: ${{ env.LAYOUTS_IMAGE }}:${{ github.sha }}
 
       - name: Build and push the solver image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: services/solver
           push: true

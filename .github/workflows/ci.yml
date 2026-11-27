@@ -24,7 +24,7 @@ jobs:
     name: Validate system.yaml and OpenAPI documents
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -66,7 +66,7 @@ jobs:
           --health-retries 10
           --health-start-period 30s
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v5
         with:
@@ -107,7 +107,7 @@ jobs:
       matrix:
         service: [layouts, solver]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v3
       - name: Build (no push)
         uses: docker/build-push-action@v6
@@ -134,7 +134,7 @@ jobs:
     runs-on: ubuntu-latest
     container: semgrep/semgrep
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Semgrep scan
         # --error fails the job on any finding; the two app.run(host="0.0.0.0")
         # lines and client.py's http:// LAYOUTS_URL default are suppressed
@@ -154,7 +154,7 @@ jobs:
       matrix:
         service: [layouts, solver]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -168,7 +168,7 @@ jobs:
     name: Secret scanning (gitleaks)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # Full history, not the default shallow clone: gitleaks scans
           # every past commit, not just the current tree, since a secret

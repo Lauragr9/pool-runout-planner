@@ -15,6 +15,16 @@ jobs:
     name: Deploy to Azure
     needs: ci
     runs-on: ubuntu-latest
+    # One deploy at a time against the same two Container Apps: without
+    # this, merging several commits in quick succession races multiple
+    # `az containerapp update` calls against the same app and Azure
+    # rejects the later one with ContainerAppOperationInProgress (hit for
+    # real on 2026-11-27). cancel-in-progress, not queue: if a newer
+    # commit is already waiting, finishing the older deploy first would
+    # just deploy code that's already superseded.
+    concurrency:
+      group: cd-deploy
+      cancel-in-progress: true
     permissions:
       id-token: write
       contents: read

@@ -43,7 +43,7 @@ connection immediately rather than timing out.
 
 ## 3. The UI degrades the same way client-side, for the history view
 
-`ui/js/table.js`'s history loader (`loadHistorySolution`) wraps its own `fetch` to `solver` in a
+`ui/js/table.js`'s history loader (`fetchSolveOrUnavailable`) wraps its own `fetch` to `solver` in a
 try/catch and marks that layout's result `"unavailable"` on any failure; the render step then
 shows "Results unavailable (solver service unreachable)." next to that layout instead of hiding
 it or breaking the page. (Server-side evidence above is from `solver`'s dependency on `layouts`;

@@ -1,4 +1,4 @@
-from engine import TABLE_HEIGHT, TABLE_WIDTH, find_runout
+from engine import TABLE_HEIGHT, TABLE_WIDTH, _valid_pocket_shots, find_runout
 from geometry import DEFAULT_BALL_RADIUS
 
 
@@ -252,3 +252,41 @@ def test_my_group_must_be_solids_or_stripes():
     _expect_value_error(
         find_runout, cue, [ball_other, ball_eight], game_mode="eight_ball", my_group="green"
     )
+
+
+def test_valid_pocket_shots_returns_every_makeable_pocket_sorted_by_angle():
+    # this ball has two makeable pockets (verified directly: ~40.6deg to
+    # (100, 50) and ~46.3deg to (100, 0)); _valid_pocket_shots must return
+    # both, easiest first, not just the single easiest one.
+    cue = {"x": 50, "y": 25}
+    ball = {"x": 65.1, "y": 25.5}
+
+    shots = _valid_pocket_shots(cue, ball, [])
+
+    assert len(shots) == 2
+    assert shots[0]["cut_angle"] < shots[1]["cut_angle"]
+    assert shots[0]["pocket"] == {"x": 100, "y": 50}
+    assert shots[1]["pocket"] == {"x": 100, "y": 0}
+
+
+def test_search_tries_a_harder_pocket_for_the_same_ball_before_giving_up():
+    # ball 1 has two makeable pockets on its own: (100, 50) at ~40.6deg
+    # (easiest) and (100, 0) at ~46.3deg (harder). Potting it through the
+    # easiest one leaves no valid shot for ball 2, for any of the three
+    # shot types (verified directly). Potting it through the harder one
+    # does leave a valid shot for ball 2, with shot_type "stun" (verified
+    # directly: "follow" doesn't work there either, "stun" and "draw" do).
+    # A search that only ever considers the single easiest pocket per ball
+    # (the old behavior) never finds this: it has no other pocket to fall
+    # back to for ball 1, and reports the layout as impossible.
+    cue = {"x": 50, "y": 25}
+    ball1 = {"number": 1, "x": 65.1, "y": 25.5}
+    ball2 = {"number": 2, "x": 13.8, "y": 23.0}
+
+    result = find_runout(cue, [ball1, ball2])
+
+    assert result["possible"] is True
+    assert result["order"][0]["ball"] == 1
+    assert result["order"][0]["pocket"] == {"x": 100, "y": 0}
+    assert result["order"][0]["shot_type"] == "stun"
+    assert result["order"][1]["ball"] == 2

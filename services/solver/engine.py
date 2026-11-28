@@ -35,11 +35,12 @@ def _clamp_to_table(pos, ball_radius=geometry.DEFAULT_BALL_RADIUS):
     }
 
 
-def _best_pocket_shot(cue_pos, object_ball, other_balls):
-    """Return the easiest makeable shot for this ball (lowest cut angle), or
-    None. This only decides which pocket to aim for; it says nothing about
-    shot_type, since the best shot_type depends on what the rest of the
-    table needs afterward, not on the shot itself."""
+def _valid_pocket_shots(cue_pos, object_ball, other_balls):
+    """Return every makeable shot for this ball, sorted easiest (lowest cut
+    angle) first, or an empty list. This only decides which pockets are
+    reachable; it says nothing about shot_type, since the best shot_type
+    depends on what the rest of the table needs afterward, not on the shot
+    itself."""
     candidates = []
     for pocket in POCKETS:
         angle = geometry.cut_angle_degrees(cue_pos, object_ball, pocket)
@@ -50,12 +51,9 @@ def _best_pocket_shot(cue_pos, object_ball, other_balls):
             continue
         if geometry.is_path_blocked(object_ball, pocket, other_balls):
             continue
-        candidates.append((angle, pocket))
-    if not candidates:
-        return None
-    candidates.sort(key=lambda c: c[0])
-    angle, pocket = candidates[0]
-    return {"pocket": pocket, "cut_angle": angle}
+        candidates.append({"pocket": pocket, "cut_angle": angle})
+    candidates.sort(key=lambda shot: shot["cut_angle"])
+    return candidates
 
 
 def _legal_candidates(remaining, game_mode):
@@ -92,8 +90,8 @@ def _search(cue_pos, remaining, obstacles, game_mode):
     scored = []
     for ball in _legal_candidates(remaining, game_mode):
         others = [b for b in remaining if b["number"] != ball["number"]] + obstacles
-        shot = _best_pocket_shot(cue_pos, ball, others)
-        if shot is not None:
+        shots = _valid_pocket_shots(cue_pos, ball, others)
+        for shot in shots:
             scored.append((shot["cut_angle"], ball, shot))
     scored.sort(key=lambda s: s[0])
 
@@ -127,7 +125,7 @@ def _first_unmakeable_ball(cue_pos, balls, obstacles, game_mode):
     makeable but no order works."""
     for ball in _legal_candidates(balls, game_mode):
         others = [b for b in balls if b["number"] != ball["number"]] + obstacles
-        if _best_pocket_shot(cue_pos, ball, others) is None:
+        if not _valid_pocket_shots(cue_pos, ball, others):
             return ball["number"]
     return None
 

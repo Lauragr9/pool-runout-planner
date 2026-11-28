@@ -59,6 +59,7 @@ const GAME_MODE_LABELS = {
 };
 
 function resetBoard() {
+  stopAnimation();
   const fresh = freshBoard();
   boardsByMode[gameMode] = fresh;
   state = fresh;
@@ -66,19 +67,23 @@ function resetBoard() {
   updateBallPalette();
   updateInstructions();
   updateGroupSelector();
+  updateAnimateButton();
 }
 
 function clearStaleSolution() {
   // the board changed, so any previously computed solve no longer matches
   // the balls actually on the table; drop it instead of leaving stale
   // markers on the canvas and a result panel pointing at the old layoutId
+  stopAnimation();
   state.solution = null;
   state.lastResult = null;
   state.lastLayoutId = null;
   document.getElementById("result").innerHTML = "";
+  updateAnimateButton();
 }
 
 function showBoardForMode(mode) {
+  stopAnimation();
   gameMode = mode;
   state = boardsByMode[mode];
   if (state.lastResult) {
@@ -89,6 +94,7 @@ function showBoardForMode(mode) {
   updateBallPalette();
   updateInstructions();
   updateGroupSelector();
+  updateAnimateButton();
   draw();
 }
 
@@ -158,7 +164,7 @@ function ballColor(number) {
   return BALL_COLORS[(number - 1) % BALL_COLORS.length];
 }
 
-function draw() {
+function drawTableBase() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawGrid();
 
@@ -168,6 +174,10 @@ function draw() {
     ctx.arc(pocket.x * scale, pocket.y * scale, 10, 0, Math.PI * 2);
     ctx.fill();
   }
+}
+
+function draw() {
+  drawTableBase();
 
   if (state.cue) {
     drawCueBall(state.cue);
@@ -245,6 +255,149 @@ function drawBall(pos, number) {
   ctx.fillText(String(number), x, y);
   ctx.restore();
 }
+
+// Runs just once per animation and is bumped by anything that should
+// invalidate an in-flight one (reset, re-solve, switching mode tabs): the
+// rAF loop checks it before every frame and before queuing the next shot,
+// so a stale run quietly stops instead of fighting a newer draw() call.
+let animationToken = 0;
+let animating = false;
+
+function updateAnimateButton() {
+  const btn = document.getElementById("animate-runout");
+  btn.disabled = animating || !state.solution || state.solution.length === 0;
+}
+
+function stopAnimation() {
+  animationToken++;
+  animating = false;
+  updateAnimateButton();
+}
+
+function lerpPoint(a, b, t) {
+  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+}
+
+// smoothstep: eases in and out instead of moving at a constant speed,
+// which reads as "coasting to a stop" rather than snapping into place
+function easeInOut(t) {
+  return t * t * (3 - 2 * t);
+}
+
+const ANIMATION_MS_PER_SHOT = 1800;
+const ANIMATION_PAUSE_MS = 500;
+// how much of a shot's time is the cue ball's approach to the object ball,
+// versus its post-contact departure toward cue_rest_position
+const APPROACH_FRACTION = 0.55;
+
+// Mirrors services/solver/geometry.py's ghost_ball_position exactly (same
+// formula, same default radius): the cue-ball center position where it
+// actually touches the object ball to send it toward `pocket`. The API
+// only gives us the final cue_rest_position, not this contact point, so
+// the animation recomputes it client-side to animate the approach.
+const BALL_RADIUS = 1.5;
+
+function ghostBallPosition(objectBall, pocket) {
+  const dx = objectBall.x - pocket.x;
+  const dy = objectBall.y - pocket.y;
+  const dist = Math.hypot(dx, dy);
+  if (dist === 0) return { x: objectBall.x, y: objectBall.y };
+  const scaleFactor = (BALL_RADIUS * 2) / dist;
+  return { x: objectBall.x + dx * scaleFactor, y: objectBall.y + dy * scaleFactor };
+}
+
+function drawDashedPath(start, end) {
+  ctx.save();
+  ctx.setLineDash([6, 6]);
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.85)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(start.x * scale, start.y * scale);
+  ctx.lineTo(end.x * scale, end.y * scale);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function animateRunout() {
+  if (animating || !state.solution || state.solution.length === 0) return;
+  animating = true;
+  animationToken++;
+  const myToken = animationToken;
+  updateAnimateButton();
+
+  let cuePos = { x: state.cue.x, y: state.cue.y };
+  const ballPositions = new Map(state.balls.map((b) => [b.number, { x: b.x, y: b.y }]));
+  const potted = new Set();
+  const steps = state.solution;
+  let stepIndex = 0;
+
+  function drawFrame(cuePathStart, cuePathEnd) {
+    drawTableBase();
+    // the cue ball's own intended path for this shot, so the hit itself
+    // reads clearly instead of just two balls drifting across the table
+    drawDashedPath(cuePathStart, cuePathEnd);
+    drawCueBall(cuePos);
+    for (const ball of state.balls) {
+      if (potted.has(ball.number)) continue;
+      const pos = ballPositions.get(ball.number);
+      drawBall(pos, ball.number);
+    }
+  }
+
+  function runStep() {
+    if (myToken !== animationToken) return;
+    if (stepIndex >= steps.length) {
+      animating = false;
+      updateAnimateButton();
+      draw(); // back to the normal static view (with the ghost markers)
+      return;
+    }
+
+    const step = steps[stepIndex];
+    const ballStart = ballPositions.get(step.ball);
+    const cueStart = cuePos;
+    // where the cue ball actually touches this ball, not its final rest
+    // spot: the real path is cueStart -> ghostPos -> cue_rest_position,
+    // with the object ball only starting to move once contact happens
+    const ghostPos = ghostBallPosition(ballStart, step.pocket);
+    const approachMs = ANIMATION_MS_PER_SHOT * APPROACH_FRACTION;
+    const departMs = ANIMATION_MS_PER_SHOT * (1 - APPROACH_FRACTION);
+    const startTime = performance.now();
+
+    function frame(now) {
+      if (myToken !== animationToken) return;
+      const elapsed = now - startTime;
+
+      if (elapsed < approachMs) {
+        const t = easeInOut(Math.min(1, elapsed / approachMs));
+        cuePos = lerpPoint(cueStart, ghostPos, t);
+        drawFrame(cueStart, ghostPos);
+        requestAnimationFrame(frame);
+        return;
+      }
+
+      const t = Math.min(1, (elapsed - approachMs) / departMs);
+      const eased = easeInOut(t);
+      ballPositions.set(step.ball, lerpPoint(ballStart, step.pocket, eased));
+      cuePos = lerpPoint(ghostPos, step.cue_rest_position, eased);
+      drawFrame(ghostPos, step.cue_rest_position);
+
+      if (t < 1) {
+        requestAnimationFrame(frame);
+      } else {
+        potted.add(step.ball);
+        ballPositions.delete(step.ball);
+        stepIndex++;
+        setTimeout(runStep, ANIMATION_PAUSE_MS);
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+
+  runStep();
+}
+
+document.getElementById("animate-runout").addEventListener("click", animateRunout);
 
 const POCKET_NAMES = {
   "0,0": "top-left corner",
@@ -353,6 +506,7 @@ function renderShotList(order) {
     const ballBadge = document.createElement("span");
     ballBadge.className = "shot-ball";
     ballBadge.textContent = String(step.ball);
+    styleAsBall(ballBadge, step.ball);
 
     const detail = document.createElement("details");
     detail.className = "shot-detail";
@@ -466,6 +620,20 @@ function paletteNumbersForMode() {
   return [];
 }
 
+// Matches the canvas's own drawBall(): a solid fill for most balls, or a
+// striped pattern for 9-15 in eight_ball mode, so a ball looks the same
+// wherever it shows up (table, palette, shot list).
+function styleAsBall(el, number) {
+  const color = ballColor(number);
+  if (shouldDrawAsStripe(number)) {
+    el.style.background = `repeating-linear-gradient(45deg, ${color}, ${color} 4px, #fff 4px, #fff 8px)`;
+    el.style.color = "#111";
+  } else {
+    el.style.background = color;
+    el.style.color = "#fff";
+  }
+}
+
 function updateBallPalette() {
   const palette = document.getElementById("ball-palette");
   const numbers = paletteNumbersForMode();
@@ -487,14 +655,7 @@ function updateBallPalette() {
     btn.type = "button";
     btn.className = "palette-number";
     btn.textContent = String(number);
-    if (shouldDrawAsStripe(number)) {
-      const color = ballColor(number);
-      btn.style.background = `repeating-linear-gradient(45deg, ${color}, ${color} 4px, #fff 4px, #fff 8px)`;
-      btn.style.color = "#111";
-    } else {
-      btn.style.background = ballColor(number);
-      btn.style.color = "#fff";
-    }
+    styleAsBall(btn, number);
     btn.disabled = usedNumbers.has(number);
     if (state.armedBallNumber === number) btn.classList.add("armed");
     btn.addEventListener("click", () => {
@@ -590,6 +751,7 @@ document.getElementById("solve").addEventListener("click", async () => {
   state.solution = result.possible ? result.order : null;
   state.lastResult = result;
   state.lastLayoutId = id;
+  updateAnimateButton();
   renderResult(result, id);
   draw();
 });
@@ -731,4 +893,5 @@ async function loadHistory() {
 updateInstructions();
 updateBallPalette();
 updateGroupSelector();
+updateAnimateButton();
 draw();

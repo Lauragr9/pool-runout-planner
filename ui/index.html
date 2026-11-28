@@ -3,40 +3,55 @@
 <head>
   <meta charset="utf-8">
   <title>Run-Out Planner</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <h1>Run-Out Planner</h1>
+  <header class="app-header">
+    <h1>Run-Out Planner</h1>
+    <p class="app-tagline">Plan the cue ball's path to a full run-out, shot by shot.</p>
+  </header>
 
-  <div class="mode-tabs" id="mode-tabs">
-    <button class="mode-tab active" data-mode="freeform">Freeform</button>
-    <button class="mode-tab" data-mode="nine_ball">9-Ball</button>
-    <button class="mode-tab" data-mode="eight_ball">8-Ball</button>
-  </div>
+  <main>
+    <div class="panel">
+      <div class="mode-tabs" id="mode-tabs">
+        <button class="mode-tab active" data-mode="freeform">Freeform</button>
+        <button class="mode-tab" data-mode="nine_ball">9-Ball</button>
+        <button class="mode-tab" data-mode="eight_ball">8-Ball</button>
+      </div>
 
-  <p id="instructions">
-    Click to place the cue ball (first click), then the object balls, in any order.
-  </p>
+      <p id="instructions">
+        Click to place the cue ball (first click), then the object balls, in any order.
+      </p>
 
-  <div id="group-selector" class="group-selector" hidden>
-    <span class="group-selector-label">Your balls:</span>
-    <button type="button" class="group-choice" data-group="solids">Solids (1-7)</button>
-    <button type="button" class="group-choice" data-group="stripes">Stripes (9-15)</button>
-  </div>
+      <div id="group-selector" class="group-selector" hidden>
+        <span class="group-selector-label">Your balls:</span>
+        <button type="button" class="group-choice" data-group="solids">Solids (1-7)</button>
+        <button type="button" class="group-choice" data-group="stripes">Stripes (9-15)</button>
+      </div>
 
-  <div id="ball-palette" class="ball-palette" hidden></div>
+      <div id="ball-palette" class="ball-palette" hidden></div>
+    </div>
 
-  <canvas id="table" width="800" height="400"></canvas>
+    <div class="panel table-panel">
+      <canvas id="table" width="800" height="400"></canvas>
+    </div>
 
-  <div class="controls">
-    <button id="reset">Reset</button>
-    <button id="solve">Save &amp; Solve</button>
-    <button id="toggle-history">View history</button>
-  </div>
+    <div class="panel">
+      <div class="controls">
+        <button id="reset">Reset</button>
+        <button id="solve">Save &amp; Solve</button>
+        <button id="animate-runout" disabled>▶ Animate run-out</button>
+        <button id="toggle-history">View history</button>
+      </div>
+    </div>
 
-  <div id="result"></div>
+    <div id="result"></div>
 
-  <div id="history" hidden></div>
+    <div class="panel" id="history" hidden></div>
+  </main>
 
   <script src="config.js"></script>
   <script src="js/table.js"></script>

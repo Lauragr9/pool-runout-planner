@@ -125,18 +125,20 @@ def test_search_backtracks_when_the_easiest_ball_leads_to_a_dead_end():
 
 
 def test_search_tries_other_shot_types_before_giving_up_on_a_ball():
-    # for this ball and pocket, "follow" (tried first) and "draw" both leave
-    # the cue ball unable to reach the other ball afterward, but "stun" does
-    # work (verified directly for all three). The search must try all three
-    # shot types for the same ball before moving on to a different ball.
+    # for this ball and pocket, "follow" (tried first) leaves the cue ball
+    # unable to reach the other ball afterward, but "stun" and "draw" both
+    # work (verified directly for all three). "stun" comes before "draw" in
+    # SHOT_TYPE_PREFERENCE, so it's the one chosen. The search must try more
+    # than just the first shot type for the same ball before moving on to a
+    # different ball.
     cue = {"x": 50, "y": 25}
-    ball1 = {"number": 1, "x": 85.4, "y": 17.0}
-    ball2 = {"number": 2, "x": 37.5, "y": 11.6}
+    ball1 = {"number": 1, "x": 32.8, "y": 30.5}
+    ball2 = {"number": 2, "x": 22.0, "y": 17.7}
 
     result = find_runout(cue, [ball1, ball2])
 
     assert result["possible"] is True
-    assert result["order"][0]["ball"] == 2
+    assert result["order"][0]["ball"] == 1
     assert result["order"][0]["shot_type"] == "stun"
 
 
@@ -274,8 +276,8 @@ def test_search_tries_a_harder_pocket_for_the_same_ball_before_giving_up():
     # (easiest) and (100, 0) at ~46.3deg (harder). Potting it through the
     # easiest one leaves no valid shot for ball 2, for any of the three
     # shot types (verified directly). Potting it through the harder one
-    # does leave a valid shot for ball 2, with shot_type "stun" (verified
-    # directly: "follow" doesn't work there either, "stun" and "draw" do).
+    # does leave a valid shot for ball 2, with shot_type "draw" (verified
+    # directly: "follow" and "stun" don't work there, only "draw" does).
     # A search that only ever considers the single easiest pocket per ball
     # (the old behavior) never finds this: it has no other pocket to fall
     # back to for ball 1, and reports the layout as impossible.
@@ -288,5 +290,5 @@ def test_search_tries_a_harder_pocket_for_the_same_ball_before_giving_up():
     assert result["possible"] is True
     assert result["order"][0]["ball"] == 1
     assert result["order"][0]["pocket"] == {"x": 100, "y": 0}
-    assert result["order"][0]["shot_type"] == "stun"
+    assert result["order"][0]["shot_type"] == "draw"
     assert result["order"][1]["ball"] == 2

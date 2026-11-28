@@ -111,18 +111,22 @@ def test_draw_rolls_straight_back_on_a_straight_in_shot():
 
 def test_stun_shot_travels_along_the_tangent_by_the_friction_based_distance():
     # for anything but a straight-in shot, a stun (no-spin) cue ball keeps
-    # sliding past the contact point along the tangent line, by a distance
-    # derived from speed and friction (speed^2 / (2 * SLIDE_FRICTION)), not a
-    # fixed made-up number
+    # sliding past the contact point along the tangent line. Only the
+    # tangential component of its incoming speed survives the collision
+    # (speed * sin(cut angle), for two equal masses and an object ball
+    # starting at rest), so the distance is that speed's friction-based
+    # stopping distance, not the plain speed^2 / (2 * SLIDE_FRICTION).
     cue_pos = {"x": 50, "y": 0}
     object_ball = {"x": 50, "y": 25}
     pocket = {"x": 100, "y": 25}
 
     ghost = geometry.ghost_ball_position(object_ball, pocket)
+    angle = geometry.cut_angle_degrees(cue_pos, object_ball, pocket)
     rest = geometry.cue_rest_position(cue_pos, object_ball, pocket, shot_type="stun")
 
     traveled = math.hypot(rest["x"] - ghost["x"], rest["y"] - ghost["y"])
-    assert traveled == pytest.approx(_expected_slide_distance())
+    expected = _expected_slide_distance(geometry.DEFAULT_SHOT_SPEED * math.sin(math.radians(angle)))
+    assert traveled == pytest.approx(expected)
 
 
 def test_follow_rotates_the_exit_direction_toward_incoming():

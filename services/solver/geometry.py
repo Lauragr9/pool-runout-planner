@@ -94,7 +94,9 @@ def cue_rest_position(
     object ball just went, since that's the part of the cue ball's incoming
     velocity left over once the component along the line of centers is
     transferred to the object ball). How far it slides is a real kinematics
-    question, not a fixed number: distance = speed^2 / (2 * SLIDE_FRICTION).
+    question, not a fixed number: distance = speed^2 / (2 * SLIDE_FRICTION),
+    where speed is the relevant post-collision speed, not always the plain
+    input speed (see "stun" below).
 
     Rotation: a collision only transfers linear velocity, not spin, so
     whatever spin the cue ball already had keeps pointing along its own
@@ -105,7 +107,11 @@ def cue_rest_position(
     (by FOLLOW_BLEND), and a backspun one (shot_type="draw") rotates the
     other way, toward "-incoming" (by DRAW_BLEND), while keeping the same
     overall slide distance. A pure "stun" shot carries no spin, so the exit
-    direction stays exactly the tangent line.
+    direction stays exactly the tangent line, and its speed is only the
+    tangential component of the incoming velocity (the component along the
+    line of centers transfers to the object ball, for two equal masses and
+    an object ball starting at rest): speed * sin(cut angle), not the full
+    incoming speed.
 
     This is a simplified, qualitative model (fixed FOLLOW_BLEND/DRAW_BLEND,
     one assumed shot speed, no cushions) rather than a full rigid-body
@@ -125,25 +131,31 @@ def cue_rest_position(
     impact = _normalize((pocket["x"] - object_ball["x"], pocket["y"] - object_ball["y"]))
 
     dot = incoming[0] * impact[0] + incoming[1] * impact[1]
-    tangent = _normalize((incoming[0] - impact[0] * dot, incoming[1] - impact[1] * dot))
+    tangent_raw = (incoming[0] - impact[0] * dot, incoming[1] - impact[1] * dot)
+    tangent = _normalize(tangent_raw)
 
     if shot_type == "follow":
         blended = (
             tangent[0] * (1 - FOLLOW_BLEND) + incoming[0] * FOLLOW_BLEND,
             tangent[1] * (1 - FOLLOW_BLEND) + incoming[1] * FOLLOW_BLEND,
         )
+        effective_speed = speed
     elif shot_type == "draw":
         blended = (
             tangent[0] * (1 - DRAW_BLEND) - incoming[0] * DRAW_BLEND,
             tangent[1] * (1 - DRAW_BLEND) - incoming[1] * DRAW_BLEND,
         )
+        effective_speed = speed
     elif shot_type == "stun":
         blended = tangent
+        # incoming and impact are unit vectors, so tangent_raw's own length
+        # is sin(cut angle) directly, no separate trig call needed.
+        effective_speed = speed * math.hypot(*tangent_raw)
     else:
         raise ValueError("shot_type must be 'stun', 'follow', or 'draw'")
 
     exit_direction = _normalize(blended)
-    slide_distance = speed ** 2 / (2 * SLIDE_FRICTION)
+    slide_distance = effective_speed ** 2 / (2 * SLIDE_FRICTION)
 
     for blocker in blockers or []:
         hit = _ray_circle_hit_distance(ghost, exit_direction, blocker, ball_radius * 2)
